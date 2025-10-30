@@ -348,7 +348,7 @@ grep -r "Dependencies:" --include="*.md" | \
 1. Check DOCUMENTATION-ROADMAP.md → Find "AI Assistant" in Phase 4
 2. Note dependencies: `api-endpoints-secrets.md`, `arch-security-model.md`
 3. Verify dependencies exist (they should if you followed the phases)
-4. Create: `08-features/ai-assistant/overview.md`
+4. Create: `08-features/ai-assistant/ai-assistant-overview.md`
 5. Use version header template
 6. List dependencies in header
 7. Extract content from `02-architecture/system-overview.md` (the current technical architecture doc)

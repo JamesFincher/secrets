@@ -106,7 +106,7 @@ User: "Create documentation for the AI Assistant feature"
 
 Claude Code should:
 1. Spawn 3-5 agents in PARALLEL (one message with multiple Task tool calls):
-   - Agent 1: `08-features/ai-assistant/overview.md`
+   - Agent 1: `08-features/ai-assistant/ai-assistant-overview.md`
    - Agent 2: `08-features/ai-assistant/conversation-management.md`
    - Agent 3: `08-features/ai-assistant/guided-acquisition.md`
    - Agent 4: `08-features/ai-assistant/prompt-engineering.md`
@@ -703,7 +703,7 @@ Dependencies: [comma-separated list of files]
 2. Check dependencies: `api-endpoints-secrets.md`, `arch-security-model.md`
 3. Spawn Explore agent to find related content
 4. **Spawn 5 agents in PARALLEL (one message):**
-   - Agent 1: Create `08-features/ai-assistant/overview.md`
+   - Agent 1: Create `08-features/ai-assistant/ai-assistant-overview.md`
    - Agent 2: Create `08-features/ai-assistant/conversation-management.md`
    - Agent 3: Create `08-features/ai-assistant/guided-acquisition.md`
    - Agent 4: Create `08-features/ai-assistant/prompt-engineering.md`

@@ -405,7 +405,7 @@ N/A - Initial implementation
 - **Impact:** Critical (entire account compromise)
 - **Mitigation:**
   - Enforce strong password policy (12+ characters, complexity)
-  - Use PBKDF2 with high iteration count (100,000+)
+  - Use PBKDF2 with high iteration count (600,000 iterations per OWASP 2023)
   - Implement rate limiting on login attempts
   - Optional: Require 2FA for all users
 
@@ -463,10 +463,10 @@ N/A - Initial implementation
 
 **T2.2: Key Derivation Weakness**
 - **Description:** Weak password-to-key derivation allows brute force
-- **Likelihood:** Low (we use PBKDF2 with 100k+ iterations)
+- **Likelihood:** Low (we use PBKDF2 with 600,000 iterations per OWASP 2023)
 - **Impact:** Critical (master key compromise)
 - **Mitigation:**
-  - PBKDF2 with 100,000+ iterations (SHA-256)
+  - PBKDF2 with 600,000 iterations (SHA-256, OWASP 2023 recommendation)
   - Unique salt per user
   - Enforce strong password policy
   - Future: Consider Argon2id upgrade
@@ -896,7 +896,7 @@ N/A - Initial implementation
 
 **Mitigation:**
 - **Primary defense:** Zero-knowledge encryption (server doesn't have keys)
-- Strong master passwords (PBKDF2 with 100k+ iterations)
+- Strong master passwords (PBKDF2 with 600,000 iterations per OWASP 2023)
 - Even if backups stolen, secrets remain encrypted
 - Trust in Supabase's security practices
 - Monitor Supabase status and security announcements
@@ -1041,7 +1041,7 @@ N/A - Initial implementation
 
 **Controls:**
 - **Zero-knowledge encryption** - Server never has keys
-- **Strong key derivation** - PBKDF2 with 100k+ iterations
+- **Strong key derivation** - PBKDF2 with 600,000 iterations (OWASP 2023)
 - **Unique IVs** - No nonce reuse
 - **Secure random generation** - `crypto.getRandomValues()`
 
@@ -1272,7 +1272,7 @@ Abyrith Security Team
 | **T1.1** Weak Password Authentication | High (4) | Critical (4) | 16 | P0 | In Progress (password policy enforced) |
 | **T1.2** JWT Token Theft | Medium (3) | High (3) | 9 | P1 | In Progress (short expiration, refresh rotation) |
 | **T2.1** Weak Encryption Algorithm | Very Low (1) | Critical (4) | 4 | P2 | Complete (AES-256-GCM) |
-| **T2.2** Key Derivation Weakness | Low (2) | Critical (4) | 8 | P1 | Complete (PBKDF2 100k iterations) |
+| **T2.2** Key Derivation Weakness | Low (2) | Critical (4) | 8 | P1 | Complete (PBKDF2 600k iterations, OWASP 2023) |
 | **T2.5** Master Key Exposure | Low (2) | Critical (4) | 8 | P1 | In Progress (memory clearing needed) |
 | **T3.1** Cross-Tenant Data Leakage | Low (2) | Critical (4) | 8 | P1 | Planned (RLS policies) |
 | **T3.2** Audit Log Tampering | Low (2) | High (3) | 6 | P2 | Planned (append-only table) |

@@ -508,7 +508,7 @@ A collection of permissions assigned to users. Abyrith has four primary roles: O
 ## Personas & Use Cases
 
 ### Enterprise Security / DevOps Team
-Organizations with 50+ developers requiring compliance (SOC 2, ISO 27001), SSO, detailed audit trails, and automated key rotation. See [Product Vision Strategy](abyrith-product-vision-strategy.md) for full persona details.
+Organizations with 50+ developers requiring compliance (SOC 2, ISO 27001), SSO, detailed audit trails, and automated key rotation. See [Product Vision Strategy](01-product/product-vision-strategy.md) for full persona details.
 
 ### Solo Developer / Indie Hacker
 Individual developers or small teams building projects, struggling with keys scattered across .env files and notes apps.
@@ -615,9 +615,9 @@ Abyrith's feature for monitoring API usage, costs, and approaching rate limits f
 
 ### Related Documentation
 
-- **Product Vision:** [Product Vision & Strategy](abyrith-product-vision-strategy.md)
-- **Technical Architecture:** [Technical Architecture](abyrith-technical-architecture (1).md)
-- **Team Principles:** [Team Playbook](abyrith-team-playbook (1).md)
+- **Product Vision:** [Product Vision & Strategy](01-product/product-vision-strategy.md)
+- **Technical Architecture:** [Technical Architecture](02-architecture/system-overview.md)
+- **Team Principles:** [Team Playbook](01-product/team-playbook.md)
 - **Tech Stack:** [Tech Stack Specification](TECH-STACK.md)
 - **Documentation Standards:** [Documentation Roadmap](DOCUMENTATION-ROADMAP.md)
 - **Claude Code Guidance:** [Claude Code Instructions](CLAUDE.md)

@@ -270,7 +270,7 @@ class MasterKeyDerivation {
       {
         name: 'PBKDF2',
         salt: salt,
-        iterations: 600000, // OWASP 2024 recommendation
+        iterations: 600000, // OWASP 2023 recommendation
         hash: 'SHA-256'
       },
       passwordKey,
@@ -1657,7 +1657,7 @@ interface GetSecretResponse {
 
 **Rationale:**
 - Web Crypto API native support (no external libraries)
-- OWASP 2024 recommendation for password hashing
+- OWASP 2023 recommendation for password hashing
 - Good balance of security and performance (~500ms on modern CPUs)
 - Widely tested and audited
 - Argon2 not available in Web Crypto API (would require polyfill)

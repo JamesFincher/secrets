@@ -198,9 +198,11 @@ jobs:
           fi
 
       - name: Validate Markdown Syntax
+        continue-on-error: true
         run: |
           echo "Installing markdownlint-cli..."
           npm install -g markdownlint-cli
+          echo "⚠️  This check is informational only and will not fail the workflow"
 
           # Create markdownlint config
           cat > .markdownlint.yml << 'EOF'

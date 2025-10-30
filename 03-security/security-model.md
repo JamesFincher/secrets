@@ -1,7 +1,7 @@
 ---
 Document: Zero-Knowledge Security Model - Architecture
-Version: 1.0.0
-Last Updated: 2025-10-29
+Version: 1.0.1
+Last Updated: 2025-10-30
 Owner: Security Lead / Engineering Lead
 Status: Draft
 Dependencies: GLOSSARY.md, TECH-STACK.md, 01-product/product-vision-strategy.md
@@ -129,7 +129,7 @@ Traditional password managers (1Password, LastPass) apply password security mode
 │                      │                                       │
 │                      ▼                                       │
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │  PBKDF2 Key Derivation (100,000 iterations)         │   │
+│  │  PBKDF2 Key Derivation (600,000 iterations)         │   │
 │  │  Password → 256-bit Master Key                      │   │
 │  │  (NEVER leaves browser)                             │   │
 │  └───────────────────┬─────────────────────────────────┘   │
@@ -311,7 +311,7 @@ interface EncryptionConfig {
   keySize: 256;          // bits
   nonceSize: 12;         // bytes (96 bits)
   tagSize: 128;          // bits
-  pbkdf2Iterations: 100000;
+  pbkdf2Iterations: 600000; // OWASP 2023 recommendation
   pbkdf2Hash: 'SHA-256';
 }
 ```
@@ -323,7 +323,7 @@ const config: EncryptionConfig = {
   keySize: 256,
   nonceSize: 12,
   tagSize: 128,
-  pbkdf2Iterations: 100000,
+  pbkdf2Iterations: 600000, // OWASP 2023 recommendation
   pbkdf2Hash: 'SHA-256'
 };
 
@@ -365,7 +365,7 @@ const encrypted = await encryptionService.encryptSecret(secretValue, masterKey);
      {
        name: 'PBKDF2',
        salt: salt,
-       iterations: 100000,
+       iterations: 600000, // OWASP 2023 recommendation
        hash: 'SHA-256'
      },
      await crypto.subtle.importKey(
@@ -728,7 +728,7 @@ User       Browser        Workers        Supabase
 interface MasterKeyDerivation {
   algorithm: 'PBKDF2';
   hash: 'SHA-256';
-  iterations: 100000;      // Balance security and UX
+  iterations: 600000;      // OWASP 2023 recommendation
   saltLength: 16;          // bytes (128 bits)
   keyLength: 32;           // bytes (256 bits)
   extractable: false;      // Key cannot be exported
@@ -767,7 +767,7 @@ async function deriveMasterKey(
     {
       name: 'PBKDF2',
       salt: salt,
-      iterations: 100000,
+      iterations: 600000, // OWASP 2023 recommendation
       hash: 'SHA-256'
     },
     keyMaterial,
@@ -901,7 +901,7 @@ Without re-encrypting the secret itself
 - ✅ **No server-side decryption**: Even with database access, attacker gets only encrypted blobs
 - ✅ **Row-Level Security**: Multi-tenancy enforcement prevents cross-user access
 - ✅ **Encrypted DEKs**: DEKs are encrypted with master keys, never stored plaintext
-- ✅ **Strong key derivation**: PBKDF2 with 100k iterations makes password cracking expensive
+- ✅ **Strong key derivation**: PBKDF2 with 600k iterations makes password cracking expensive
 
 **Residual Risk:** Attacker could attempt brute-force on weak passwords (mitigated by password strength requirements, 2FA)
 
@@ -1360,7 +1360,7 @@ interface AuditLogEntry {
 
 **Rationale:**
 - Native Web Crypto API support (no external library, reduced bundle size)
-- Sufficient security with 100k iterations for our use case
+- Sufficient security with 600k iterations for our use case
 - Argon2 requires JavaScript implementation (slower, larger bundle, more attack surface)
 - Can migrate to Argon2 in future if needed (envelope encryption supports algorithm changes)
 
@@ -1370,28 +1370,28 @@ interface AuditLogEntry {
 
 ---
 
-### Decision 2: 100,000 PBKDF2 Iterations
+### Decision 2: 600,000 PBKDF2 Iterations
 
-**Date:** 2025-10-29
+**Date:** 2025-10-29 (Updated: 2025-10-30)
 
 **Context:** Need to balance security (more iterations) with UX (faster key derivation)
 
 **Options:**
-1. **10,000 iterations** - Fast (~50ms), minimum security
-2. **100,000 iterations** - Balanced (~200-500ms), good security
+1. **100,000 iterations** - NIST 2017 minimum, fast (~200-500ms)
+2. **600,000 iterations** - OWASP 2023 recommendation (~1-2s)
 3. **1,000,000 iterations** - Maximum security (~2-5s), poor UX
 
-**Decision:** 100,000 iterations
+**Decision:** 600,000 iterations
 
 **Rationale:**
-- OWASP recommends 100,000+ for PBKDF2-SHA256
-- ~200-500ms derivation time is acceptable UX (happens once per session)
-- Strong enough to make brute-force attacks expensive
-- Can increase in future if hardware improves
+- OWASP 2023 recommends 600,000 iterations for PBKDF2-SHA256
+- ~1-2 second derivation time is acceptable UX (happens once per session)
+- Significantly stronger against brute-force attacks than 100,000
+- Aligns with current security best practices
 
 **Consequences:**
-- Slight delay when logging in (acceptable)
-- Users on slow devices may experience 500ms delay (rare, still acceptable)
+- Moderate delay when logging in (acceptable for security benefit)
+- Users on slow devices may experience 2s delay (acceptable trade-off)
 
 ---
 
@@ -1501,6 +1501,7 @@ interface AuditLogEntry {
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0.0 | 2025-10-29 | Security Lead / Engineering Lead | Initial security model documentation |
+| 1.0.1 | 2025-10-30 | repo-manager | Updated PBKDF2 iterations from 100,000 to 600,000 to align with OWASP 2023 recommendations |
 
 ---
 

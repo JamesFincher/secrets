@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Corrected impossible timeline in ROADMAP.md (MVP now correctly scheduled for Q1 2026)
+- **CRITICAL SECURITY FIX:** Updated PBKDF2 iterations from 100,000 to 600,000 in security-model.md to align with OWASP 2023 recommendations and maintain consistency across all security documentation
 - Removed spaces and "(1)" from filenames for proper naming conventions
 - Updated all cross-references to point to new file locations
 

@@ -4,7 +4,7 @@ Version: 1.0.0
 Last Updated: 2025-10-30
 Owner: Integration Team
 Status: Draft
-Dependencies: 09-integrations/mcp/mcp-overview.md, 08-features/ai-assistant/ai-assistant-overview.md, 03-security/security-model.md
+Dependencies: 09-integrations/mcp/mcp-overview.md, 08-features/ai-assistant/ai-assistant-overview.md, 03-security/security-model.md, 05-api/endpoints/secrets-endpoints.md
 ---
 
 # Claude Code Integration
@@ -1968,8 +1968,8 @@ abyrith-mcp logs --since "2025-10-30" > abyrith-debug.log
 **Must exist before integration:**
 - [x] `09-integrations/mcp/mcp-overview.md` - MCP server architecture and tools
 - [x] `03-security/security-model.md` - Zero-knowledge encryption specification
-- [ ] `08-features/ai-assistant/ai-assistant-overview.md` - AI Assistant for guided acquisition
-- [ ] `05-api/endpoints/secrets-endpoints.md` - Secrets API specification
+- [x] `08-features/ai-assistant/ai-assistant-overview.md` - AI Assistant for guided acquisition
+- [x] `05-api/endpoints/secrets-endpoints.md` - Secrets API specification
 
 **External Dependencies:**
 - Claude Code desktop application (installed by user)

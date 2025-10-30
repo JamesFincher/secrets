@@ -1,3 +1,12 @@
+---
+Document: Technical Architecture Specification
+Version: 1.0.0
+Last Updated: 2025-10-30
+Owner: Engineering Lead
+Status: Approved
+Dependencies: 01-product/product-vision-strategy.md
+---
+
 # Abyrith: Technical Architecture Specification
 
 ## Architecture Overview

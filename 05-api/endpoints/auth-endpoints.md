@@ -1502,7 +1502,7 @@ curl -X POST https://api.abyrith.com/v1/auth/mfa/verify \
 ### Technical Dependencies
 
 **Must exist before implementation:**
-- [ ] `05-api/api-rest-design.md` - REST API design patterns (**Note:** This dependency is missing, should be created before implementation)
+- [x] `05-api/api-rest-design.md` - REST API design patterns
 - [x] `03-security/auth/authentication-flow.md` - Authentication flow architecture
 - [x] `TECH-STACK.md` - Supabase Auth configuration
 - [x] `GLOSSARY.md` - Authentication terminology

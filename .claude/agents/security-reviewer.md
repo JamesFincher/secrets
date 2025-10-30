@@ -26,7 +26,7 @@ When reviewing documentation, systematically evaluate against this comprehensive
 
 - Does this design require the server to access unencrypted secrets at any point?
 - Is client-side encryption correctly specified as AES-256-GCM?
-- Is master key derivation documented as PBKDF2 with appropriate iteration count (minimum 100,000 iterations)?
+- Is master key derivation documented as PBKDF2 with appropriate iteration count (minimum 600,000 iterations per OWASP 2023 standard)?
 - Could the master key or encryption key be transmitted to the server in any scenario?
 - Are encryption parameters properly specified?
   - Key size: 256-bit

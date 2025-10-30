@@ -1,10 +1,10 @@
 ---
 Document: Users & Organizations - Database Schema
-Version: 1.0.0
+Version: 1.1.0
 Last Updated: 2025-10-30
 Owner: Backend Engineer
 Status: Draft
-Dependencies: 04-database/database-overview.md, 03-security/auth/authentication-flow.md, GLOSSARY.md, TECH-STACK.md
+Dependencies: 03-security/rbac/rls-policies.md, 03-security/rbac/role-definitions.md, 04-database/database-overview.md, 03-security/auth/authentication-flow.md, GLOSSARY.md, TECH-STACK.md
 ---
 
 # Users & Organizations Database Schema
@@ -248,6 +248,83 @@ CREATE TABLE organization_members (
 
 ---
 
+### Table: `project_members`
+
+**Purpose:** Many-to-many relationship between users and projects with role-based permissions (project-specific role overrides)
+
+**Ownership:** Project (team members belong to project, can override organization-level roles)
+
+**Definition:**
+
+```sql
+CREATE TABLE project_members (
+  -- Composite Primary Key
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+
+  -- Role and Permissions (overrides organization role for this project)
+  role VARCHAR(50) NOT NULL DEFAULT 'developer',
+
+  -- Invitation and Status
+  invited_by UUID REFERENCES auth.users(id),
+  invited_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  joined_at TIMESTAMPTZ,
+
+  -- Metadata
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  -- Soft delete
+  removed_at TIMESTAMPTZ,
+
+  -- Constraints
+  PRIMARY KEY (project_id, user_id),
+  CONSTRAINT project_members_role_valid CHECK (role IN ('owner', 'admin', 'developer', 'read_only')),
+  CONSTRAINT project_members_cannot_invite_self CHECK (invited_by != user_id)
+);
+```
+
+**Column Descriptions:**
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `project_id` | UUID | No | - | Project reference |
+| `user_id` | UUID | No | - | User reference |
+| `role` | VARCHAR(50) | No | `'developer'` | User's role in this project (can override org role) |
+| `invited_by` | UUID | Yes | `null` | User who sent invitation |
+| `invited_at` | TIMESTAMPTZ | No | `now()` | When invitation was sent |
+| `joined_at` | TIMESTAMPTZ | Yes | `null` | When user accepted invitation |
+| `created_at` | TIMESTAMPTZ | No | `now()` | Record creation timestamp |
+| `updated_at` | TIMESTAMPTZ | No | `now()` | Last update timestamp |
+| `removed_at` | TIMESTAMPTZ | Yes | `null` | Soft delete timestamp |
+
+**Constraints:**
+
+| Name | Type | Definition | Purpose |
+|------|------|------------|---------|
+| `project_members_role_valid` | CHECK | `role IN (...)` | Ensure role is valid |
+| `project_members_cannot_invite_self` | CHECK | `invited_by != user_id` | Prevent self-invitation |
+
+**Validation Rules:**
+- `role`: One of: 'owner', 'admin', 'developer', 'read_only'
+- Each project can have multiple owners (unlike organizations)
+- `joined_at` is set when user accepts invitation (null = pending)
+- `removed_at` is set when member is removed from project
+
+**Role Definitions:**
+- **Owner**: Full control of project, can delete project, manage all settings
+- **Admin**: Manage project members and secrets, cannot delete project
+- **Developer**: Read and write secrets, cannot manage team
+- **Read-Only**: View secret names/metadata, cannot decrypt values
+
+**Role Override Behavior:**
+When a user has both an organization role and a project role, the effective role is determined by `MAX(org_role_level, project_role_level)`:
+- Organization: Admin (level 3), Project: Developer (level 2) → Effective: Admin (level 3)
+- Organization: Developer (level 2), Project: Admin (level 3) → Effective: Admin (level 3)
+- Organization: Read-Only (level 1), Project: Developer (level 2) → Effective: Developer (level 2)
+
+---
+
 ### Table: `user_preferences`
 
 **Purpose:** Store user-specific settings and preferences
@@ -356,34 +433,36 @@ CREATE TABLE user_preferences (
 ### Entity Relationship Diagram
 
 ```
-┌─────────────────┐
-│   auth.users    │ (Supabase managed)
-│   (identity)    │
-└────────┬────────┘
-         │
-         │ 1
-         │
-         │ N
-┌────────▼─────────────────────┐
-│  organization_members        │
-│  (user-org junction)         │
-└────────┬─────────────────────┘
-         │ N
-         │
-         │ 1
-┌────────▼────────┐     ┌──────────────────┐
-│ organizations   │     │ user_preferences │
-│ (teams/orgs)    │     │ (user settings)  │
-└─────────────────┘     └──────────────────┘
-         │                       │
-         │                       │ 1
-         │ 1                     │
-         │                ┌──────▼───────┐
-         │                │ auth.users   │
-         │                └──────────────┘
-         │ N
-         │
-    (Projects, Secrets - documented in db-schema-secrets.md)
+                    ┌─────────────────┐
+                    │   auth.users    │ (Supabase managed)
+                    │   (identity)    │
+                    └────────┬────────┘
+                             │
+                 ┌───────────┼───────────┐
+                 │ 1         │           │ 1
+                 │           │           │
+                 │ N         │ N         │ 1
+   ┌─────────────▼─────┐ ┌──▼─────────────────┐ ┌──▼────────────┐
+   │organization_      │ │ project_members    │ │ user_         │
+   │members            │ │ (user-project      │ │ preferences   │
+   │(user-org junction)│ │  junction)         │ │ (user         │
+   └─────────────┬─────┘ └──┬─────────────────┘ │  settings)    │
+                 │ N        │ N                  └───────────────┘
+                 │          │
+                 │ 1        │ 1
+         ┌───────▼──────┐ ┌▼───────────┐
+         │organizations │ │  projects  │
+         │(teams/orgs)  │ │            │
+         └──────────────┘ └────────────┘
+                 │              │
+                 │ 1            │
+                 │              │
+                 │ N            │
+                 └──────┬───────┘
+                        │
+                        │
+                   (Secrets, Environments -
+                    documented in other schemas)
 ```
 
 ### Relationship Details
@@ -417,6 +496,24 @@ CREATE TABLE user_preferences (
 - Foreign Key: `user_preferences.user_id → auth.users.id`
 - Cascade: `ON DELETE CASCADE` (delete preferences when user deleted)
 - Description: Each user has exactly one preferences record
+
+**auth.users → project_members**
+- Type: One-to-Many
+- Foreign Key: `project_members.user_id → auth.users.id`
+- Cascade: `ON DELETE CASCADE` (remove project membership when user deleted)
+- Description: One user can be a member of multiple projects
+
+**projects → project_members**
+- Type: One-to-Many
+- Foreign Key: `project_members.project_id → projects.id`
+- Cascade: `ON DELETE CASCADE` (remove all memberships when project deleted)
+- Description: One project has many members with different roles
+
+**auth.users → project_members (invited_by)**
+- Type: One-to-Many
+- Foreign Key: `project_members.invited_by → auth.users.id`
+- Cascade: `SET NULL` (preserve invitation record even if inviter deleted)
+- Description: Track who invited each project member
 
 ---
 
@@ -687,6 +784,194 @@ User leaves organization (DELETE their own record). RLS allows. Admin tries to r
 
 ---
 
+### Table: `project_members`
+
+**RLS Policy 1: `project_members_select_policy`**
+
+**Purpose:** Users can view project members if they have access to the project (via organization or direct project membership)
+
+**Operation:** `SELECT`
+
+**Role:** `authenticated`
+
+**Definition:**
+```sql
+CREATE POLICY project_members_select_policy ON project_members
+  FOR SELECT
+  TO authenticated
+  USING (
+    -- User is a member of this project
+    project_id IN (
+      SELECT project_id
+      FROM project_members
+      WHERE user_id = auth.uid()
+        AND removed_at IS NULL
+    )
+    OR
+    -- User is a member of the organization that owns this project
+    EXISTS (
+      SELECT 1
+      FROM projects p
+      JOIN organization_members om ON om.organization_id = p.organization_id
+      WHERE p.id = project_members.project_id
+        AND om.user_id = auth.uid()
+        AND om.removed_at IS NULL
+    )
+  );
+```
+
+**Example Scenario:**
+User is a member of Project A. They can SELECT all members of Project A. User is NOT a member of Project B - they cannot see Project B's members.
+
+---
+
+**RLS Policy 2: `project_members_insert_policy`**
+
+**Purpose:** Admins and owners can add new members to projects; organization admins/owners can add members to any project in their org
+
+**Operation:** `INSERT`
+
+**Role:** `authenticated`
+
+**Definition:**
+```sql
+CREATE POLICY project_members_insert_policy ON project_members
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    -- User is admin/owner of this project
+    project_id IN (
+      SELECT project_id
+      FROM project_members
+      WHERE user_id = auth.uid()
+        AND role IN ('owner', 'admin')
+        AND removed_at IS NULL
+    )
+    OR
+    -- User is admin/owner of the organization that owns this project
+    EXISTS (
+      SELECT 1
+      FROM projects p
+      JOIN organization_members om ON om.organization_id = p.organization_id
+      WHERE p.id = project_members.project_id
+        AND om.user_id = auth.uid()
+        AND om.role IN ('owner', 'admin')
+        AND om.removed_at IS NULL
+    )
+  );
+```
+
+**Example Scenario:**
+Project Admin invites a new developer to the project. RLS allows INSERT because admin has 'admin' role in project. Organization admin can also invite members to any project in their organization.
+
+---
+
+**RLS Policy 3: `project_members_update_policy`**
+
+**Purpose:** Admins and owners can update member roles
+
+**Operation:** `UPDATE`
+
+**Role:** `authenticated`
+
+**Definition:**
+```sql
+CREATE POLICY project_members_update_policy ON project_members
+  FOR UPDATE
+  TO authenticated
+  USING (
+    -- User is admin/owner of this project
+    project_id IN (
+      SELECT project_id
+      FROM project_members
+      WHERE user_id = auth.uid()
+        AND role IN ('owner', 'admin')
+        AND removed_at IS NULL
+    )
+    OR
+    -- User is admin/owner of the organization
+    EXISTS (
+      SELECT 1
+      FROM projects p
+      JOIN organization_members om ON om.organization_id = p.organization_id
+      WHERE p.id = project_members.project_id
+        AND om.user_id = auth.uid()
+        AND om.role IN ('owner', 'admin')
+        AND om.removed_at IS NULL
+    )
+  )
+  WITH CHECK (
+    -- Same as USING clause
+    project_id IN (
+      SELECT project_id
+      FROM project_members
+      WHERE user_id = auth.uid()
+        AND role IN ('owner', 'admin')
+        AND removed_at IS NULL
+    )
+    OR
+    EXISTS (
+      SELECT 1
+      FROM projects p
+      JOIN organization_members om ON om.organization_id = p.organization_id
+      WHERE p.id = project_members.project_id
+        AND om.user_id = auth.uid()
+        AND om.role IN ('owner', 'admin')
+        AND om.removed_at IS NULL
+    )
+  );
+```
+
+**Example Scenario:**
+Project admin changes a developer to read_only role. RLS allows UPDATE. Developer tries to change someone's role - RLS blocks.
+
+---
+
+**RLS Policy 4: `project_members_delete_policy`**
+
+**Purpose:** Admins and owners can remove members; members can remove themselves
+
+**Operation:** `DELETE`
+
+**Role:** `authenticated`
+
+**Definition:**
+```sql
+CREATE POLICY project_members_delete_policy ON project_members
+  FOR DELETE
+  TO authenticated
+  USING (
+    -- Either you're removing yourself
+    user_id = auth.uid()
+    OR
+    -- Or you're an admin/owner removing someone else
+    (
+      project_id IN (
+        SELECT project_id
+        FROM project_members
+        WHERE user_id = auth.uid()
+          AND role IN ('owner', 'admin')
+          AND removed_at IS NULL
+      )
+      OR
+      EXISTS (
+        SELECT 1
+        FROM projects p
+        JOIN organization_members om ON om.organization_id = p.organization_id
+        WHERE p.id = project_members.project_id
+          AND om.user_id = auth.uid()
+          AND om.role IN ('owner', 'admin')
+          AND om.removed_at IS NULL
+      )
+    )
+  );
+```
+
+**Example Scenario:**
+User leaves project (DELETE their own record). RLS allows. Project admin removes a member - RLS allows. Developer tries to remove another member - RLS blocks.
+
+---
+
 ### Table: `user_preferences`
 
 **RLS Policy 1: `user_prefs_all_operations_policy`**
@@ -909,13 +1194,117 @@ WHERE created_by = $1
 
 ---
 
+**Index 5: `idx_project_members_user_id`**
+
+**Purpose:** Fast lookup of user's project memberships
+
+**Table:** `project_members`
+
+**Columns:** `(user_id)`
+
+**Type:** B-tree
+
+**Definition:**
+```sql
+CREATE INDEX idx_project_members_user_id
+  ON project_members (user_id)
+  WHERE removed_at IS NULL;
+```
+
+**Queries Optimized:**
+```sql
+-- Find all projects for a user
+SELECT project_id, role
+FROM project_members
+WHERE user_id = $1
+  AND removed_at IS NULL;
+```
+
+**Performance Impact:**
+- Query time: 40ms → 4ms (typical)
+- Index size: ~10KB per 1000 memberships
+
+---
+
+**Index 6: `idx_project_members_project_id`**
+
+**Purpose:** Fast lookup of project members
+
+**Table:** `project_members`
+
+**Columns:** `(project_id)`
+
+**Type:** B-tree
+
+**Definition:**
+```sql
+CREATE INDEX idx_project_members_project_id
+  ON project_members (project_id)
+  WHERE removed_at IS NULL;
+```
+
+**Queries Optimized:**
+```sql
+-- Find all members of a project
+SELECT user_id, role, invited_at
+FROM project_members
+WHERE project_id = $1
+  AND removed_at IS NULL;
+```
+
+**Performance Impact:**
+- Query time: 35ms → 3ms (typical)
+- Index size: ~10KB per 1000 memberships
+
+---
+
+**Index 7: `idx_project_members_project_id_role`**
+
+**Purpose:** Fast lookup of project members by role
+
+**Table:** `project_members`
+
+**Columns:** `(project_id, role)`
+
+**Type:** B-tree
+
+**Definition:**
+```sql
+CREATE INDEX idx_project_members_project_id_role
+  ON project_members (project_id, role)
+  WHERE removed_at IS NULL;
+```
+
+**Queries Optimized:**
+```sql
+-- Find all admins in a project
+SELECT user_id, joined_at
+FROM project_members
+WHERE project_id = $1
+  AND role = 'admin'
+  AND removed_at IS NULL;
+
+-- Check if project has an owner
+SELECT COUNT(*)
+FROM project_members
+WHERE project_id = $1
+  AND role = 'owner'
+  AND removed_at IS NULL;
+```
+
+**Performance Impact:**
+- Query time: 25ms → 2ms (typical)
+- Index size: ~15KB per 1000 memberships
+
+---
+
 ## Triggers
 
 ### Trigger: `handle_updated_at`
 
 **Purpose:** Automatically update `updated_at` timestamp on row modifications
 
-**Table:** `organizations`, `organization_members`, `user_preferences`
+**Table:** `organizations`, `organization_members`, `project_members`, `user_preferences`
 
 **Event:** `BEFORE UPDATE`
 
@@ -939,6 +1328,12 @@ CREATE TRIGGER set_organizations_updated_at
 -- Trigger for organization_members
 CREATE TRIGGER set_org_members_updated_at
   BEFORE UPDATE ON organization_members
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger for project_members
+CREATE TRIGGER set_project_members_updated_at
+  BEFORE UPDATE ON project_members
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
@@ -1732,6 +2127,7 @@ WHERE o.id = $1  -- Organization ID
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
+| 1.1.0 | 2025-10-30 | Documentation Creator Agent | Added project_members table schema, RLS policies, indexes, and triggers |
 | 1.0.0 | 2025-10-30 | Documentation Creator Agent | Initial schema definition for users and organizations |
 
 ---

@@ -1,9 +1,13 @@
-# Abyrith Documentation Folder Structure
-
-**Version:** 1.0
-**Last Updated:** 2025-10-29
-
 ---
+Document: Abyrith Documentation Folder Structure
+Version: 1.0.0
+Last Updated: 2025-10-30
+Owner: Engineering Lead
+Status: Approved
+Dependencies: DOCUMENTATION-ROADMAP.md
+---
+
+# Abyrith Documentation Folder Structure
 
 ## Folder Organization Philosophy
 

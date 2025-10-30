@@ -1637,8 +1637,8 @@ EOF
 
 **Must exist before implementation:**
 - [x] `09-integrations/mcp/mcp-overview.md` - MCP architecture
-- [ ] `05-api/endpoints/secrets-endpoints.md` - Secret API
-- [ ] `08-features/ai-assistant/ai-assistant-overview.md` - AI Assistant feature
+- [x] `05-api/endpoints/secrets-endpoints.md` - Secret API
+- [x] `08-features/ai-assistant/ai-assistant-overview.md` - AI Assistant feature
 - [x] `03-security/security-model.md` - Zero-knowledge encryption
 
 **External Dependencies:**

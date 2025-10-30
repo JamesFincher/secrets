@@ -1305,9 +1305,9 @@ Abyrith Security Team
 ### Technical Dependencies
 
 **Must exist before implementation:**
-- [ ] `03-security/security-model.md` - Zero-knowledge architecture specification
-- [ ] `GLOSSARY.md` - Security terminology definitions
-- [ ] `TECH-STACK.md` - Technology choices and versions
+- [x] `03-security/security-model.md` - Zero-knowledge architecture specification
+- [x] `GLOSSARY.md` - Security terminology definitions
+- [x] `TECH-STACK.md` - Technology choices and versions
 
 **Related Documentation:**
 - `03-security/encryption-specification.md` - Detailed crypto specs

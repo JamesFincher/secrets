@@ -1758,7 +1758,7 @@ interface GetSecretResponse {
 
 **Must exist before implementation:**
 - [x] `GLOSSARY.md` - Understand zero-knowledge, master key, encryption terms
-- [ ] `03-security/security-model.md` - Overall security architecture
+- [x] `03-security/security-model.md` - Overall security architecture
 - [x] `TECH-STACK.md` - Web Crypto API, Supabase, Cloudflare Workers
 
 **External Services:**

@@ -252,7 +252,7 @@ Each folder has a designated owner responsible for reviewing all documentation i
 #### Naming and Placement
 - [ ] File name uses kebab-case (`feature-name.md`, not `FeatureName.md`)
 - [ ] File placed in correct folder per `FOLDER-STRUCTURE.md`
-- [ ] File name is descriptive and follows conventions (e.g., `api-`, `db-`, `feature-` prefixes)
+- [ ] File name is descriptive (folder structure provides context, no prefixes needed)
 
 #### Content Quality
 - [ ] Content is accurate and complete

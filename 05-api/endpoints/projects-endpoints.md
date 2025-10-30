@@ -771,13 +771,13 @@ interface ProjectMember {
   user_id: string;
   email: string;
   name: string | null;
-  role: UserRole;           // 'owner', 'admin', 'developer', 'read-only'
+  role: UserRole;           // 'owner', 'admin', 'developer', 'read_only'
   added_at: string;
   added_by: string;
   last_accessed: string | null;
 }
 
-type UserRole = 'owner' | 'admin' | 'developer' | 'read-only';
+type UserRole = 'owner' | 'admin' | 'developer' | 'read_only';
 ```
 
 **Example Response:**
@@ -829,7 +829,7 @@ type UserRole = 'owner' | 'admin' | 'developer' | 'read-only';
 ```typescript
 interface AddProjectMemberRequest {
   user_id: string;      // Required, must be organization member
-  role: UserRole;       // Required: 'admin', 'developer', 'read-only'
+  role: UserRole;       // Required: 'admin', 'developer', 'read_only'
 }
 ```
 
@@ -872,7 +872,7 @@ interface AddProjectMemberResponse {
   {
     "error": "validation_error",
     "message": "Invalid role specified",
-    "details": { "role": ["must be one of: admin, developer, read-only"] }
+    "details": { "role": ["must be one of: admin, developer, read_only"] }
   }
   ```
 - `401 Unauthorized` - Missing or invalid token
@@ -908,7 +908,7 @@ interface AddProjectMemberResponse {
 **Request:**
 ```typescript
 interface UpdateProjectMemberRequest {
-  role: UserRole;  // Required: 'admin', 'developer', 'read-only'
+  role: UserRole;  // Required: 'admin', 'developer', 'read_only'
 }
 ```
 

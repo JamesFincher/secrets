@@ -186,7 +186,7 @@ Version: 0.1.0
 Last Updated: 2025-10-29
 Owner: AI Engineer
 Status: Draft
-Dependencies: api-endpoints-secrets.md, arch-security-model.md
+Dependencies: 05-api/endpoints/secrets-endpoints.md, 03-security/security-model.md
 ---
 ```
 

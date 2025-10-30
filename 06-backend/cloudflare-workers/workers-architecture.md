@@ -51,7 +51,7 @@ The Abyrith platform requires a robust API gateway that can handle authenticatio
 **Pain points:**
 - API requests need global distribution with minimal latency
 - Rate limiting must prevent abuse while allowing legitimate usage
-- Zero-knowledge architecture requires master encryption keys to be accessible but secure
+- Zero-knowledge architecture requires backend encryption keys to be accessible but secure
 - Caching needs to be intelligent and respect user permissions
 - Request routing must be flexible to support multiple backend services (Supabase, Claude API, FireCrawl)
 
@@ -72,7 +72,7 @@ N/A - This is the initial architecture design.
 |-------------|----------|----------|
 | Frontend Team | Fast API responses, clear error messages | Worker complexity shouldn't leak into frontend |
 | Backend Team | Secure backend access, scalable architecture | Workers must properly enforce RLS and auth |
-| Security Team | Zero-knowledge encryption, audit logging | Master encryption keys must be stored securely |
+| Security Team | Zero-knowledge encryption, audit logging | Backend encryption keys must be stored securely |
 | DevOps Team | Easy deployment, monitoring, debugging | Worker deployment and rollback procedures |
 | Users | Fast page loads, reliable service | Minimal latency regardless of location |
 
@@ -85,7 +85,7 @@ N/A - This is the initial architecture design.
 **Primary goals:**
 1. **Sub-200ms API response time (p95)** - Leverage edge computing for fast responses globally
 2. **Comprehensive rate limiting** - Prevent abuse with per-IP and per-user limits
-3. **Secure secrets storage** - Store master encryption key safely in Worker environment
+3. **Secure secrets storage** - Store backend encryption key safely in Worker environment
 4. **Intelligent caching** - Cache public data while respecting user permissions
 5. **Zero cold starts** - Maintain V8 isolate architecture for instant execution
 
@@ -164,7 +164,7 @@ N/A - This is the initial architecture design.
 │  │         Worker Environment Variables                │ │
 │  │  • SUPABASE_URL (backend endpoint)                 │ │
 │  │  • SUPABASE_ANON_KEY (public key)                  │ │
-│  │  • MASTER_ENCRYPTION_KEY (zero-knowledge key)      │ │
+│  │  • BACKEND_ENCRYPTION_KEY (envelope encryption)    │ │
 │  │  • CLAUDE_API_KEY (AI integration)                 │ │
 │  │  • FIRECRAWL_API_KEY (doc scraping)               │ │
 │  └────────────────────────────────────────────────────┘ │
@@ -205,7 +205,7 @@ N/A - This is the initial architecture design.
 - **Purpose:** Secure storage for sensitive configuration
 - **Technology:** Cloudflare Workers Secrets (encrypted at rest)
 - **Responsibilities:**
-  - Master encryption key for zero-knowledge system
+  - Backend encryption key for envelope encryption (DEKs only)
   - API keys for backend integrations
   - Service URLs and configuration
 
@@ -400,11 +400,11 @@ Prevent API abuse by limiting the number of requests from a single user or IP ad
 interface RateLimitConfig {
   authenticated: {
     perMinute: number;    // 100 requests/minute
-    perHour: number;      // 2000 requests/hour
+    perHour: number;      // 1000 requests/hour
   };
   unauthenticated: {
     perMinute: number;    // 20 requests/minute per IP
-    perHour: number;      // 200 requests/hour per IP
+    perHour: number;      // 100 requests/hour per IP
   };
 }
 
@@ -794,15 +794,17 @@ Securely manage configuration and secrets needed by Workers to communicate with 
 interface WorkerSecrets {
   // Backend service endpoints
   SUPABASE_URL: string;               // e.g., https://xyz.supabase.co
-  SUPABASE_ANON_KEY: string;          // Public anon key
-  SUPABASE_SERVICE_ROLE_KEY: string;  // Admin key (use sparingly)
+  SUPABASE_ANON_KEY: string;          // Public anon key (use with user JWT for RLS)
 
   // AI integrations
   CLAUDE_API_KEY: string;             // Anthropic API key
   FIRECRAWL_API_KEY: string;          // FireCrawl API key
 
-  // Zero-knowledge encryption
-  MASTER_ENCRYPTION_KEY: string;      // Master key for envelope encryption
+  // Envelope encryption (DEKs only, NOT user secrets)
+  // NOTE: User's master key is NEVER transmitted to server!
+  // User master key is derived client-side via PBKDF2 (600k iterations)
+  // This backend key is ONLY for encrypting Data Encryption Keys (DEKs)
+  BACKEND_ENCRYPTION_KEY: string;     // Backend key for DEK envelope encryption
 
   // Monitoring & logging
   SENTRY_DSN?: string;                // Error tracking
@@ -821,13 +823,22 @@ export default {
   async fetch(request: Request, env: WorkerSecrets, ctx: ExecutionContext) {
     // Access Supabase
     const supabaseUrl = env.SUPABASE_URL;
-    const supabaseKey = env.SUPABASE_ANON_KEY;
+    const anonKey = env.SUPABASE_ANON_KEY;
 
-    // Initialize Supabase client
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Extract user JWT from request for RLS enforcement
+    const userJWT = extractToken(request.headers.get('Authorization'));
 
-    // Access encryption key for zero-knowledge operations
-    const masterKey = env.MASTER_ENCRYPTION_KEY;
+    // Initialize Supabase client with user's JWT (enforces RLS)
+    const supabase = createClient(supabaseUrl, anonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${userJWT}`,
+        },
+      },
+    });
+
+    // Access backend encryption key for DEK envelope encryption only
+    const backendKey = env.BACKEND_ENCRYPTION_KEY;
 
     // Use secrets...
   }
@@ -837,10 +848,11 @@ export default {
 **Security Considerations:**
 
 1. **Never log secrets** - Redact from logs
-2. **Use service role key sparingly** - Bypass RLS only when absolutely necessary
+2. **Always use anon key + user JWT** - Enforces RLS, never bypass with service role key
 3. **Rotate keys regularly** - Implement rotation procedures
-4. **Master encryption key protection** - Critical for zero-knowledge architecture
+4. **Backend encryption key protection** - Critical for envelope encryption security
 5. **Environment separation** - Different keys for dev/staging/production
+6. **Zero-knowledge architecture** - User's master key NEVER transmitted to server
 
 **Deployment:**
 
@@ -848,7 +860,7 @@ export default {
 # Set secrets via Wrangler CLI
 wrangler secret put SUPABASE_URL
 wrangler secret put SUPABASE_ANON_KEY
-wrangler secret put MASTER_ENCRYPTION_KEY
+wrangler secret put BACKEND_ENCRYPTION_KEY
 wrangler secret put CLAUDE_API_KEY
 wrangler secret put FIRECRAWL_API_KEY
 
@@ -920,11 +932,13 @@ wrangler secret delete OLD_SECRET_NAME
 
 7. **Worker - Backend Proxy:** Forward request to Supabase
    ```typescript
+   // IMPORTANT: Use anon key + user JWT to enforce RLS
+   // NEVER use service role key (bypasses RLS)
    const supabaseResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/secrets`, {
      method: 'GET',
      headers: {
-       'Authorization': `Bearer ${token}`, // Pass user's JWT
-       'apikey': env.SUPABASE_ANON_KEY,
+       'Authorization': `Bearer ${token}`, // Pass user's JWT for RLS
+       'apikey': env.SUPABASE_ANON_KEY,     // Anon key, NOT service role
        'Content-Type': 'application/json',
      }
    });
@@ -993,6 +1007,7 @@ Client          Worker          KV          Supabase
 
 3. **Worker - Rate Limiting:** Check IP-based rate limit
    ```typescript
+   // Unauthenticated requests: 20/min, 100/hour per IP
    const rateLimited = await checkRateLimit(
      `ip:${clientIP}`,
      'minute',
@@ -1257,7 +1272,7 @@ async function validateJWT(token: string, supabaseUrl: string): Promise<User | n
 **Data at Rest:**
 - **Worker Environment Variables:** Encrypted by Cloudflare at rest
 - **KV Storage:** Encrypted at rest with Cloudflare-managed keys
-- **Master Encryption Key:** Stored in Worker secrets, used for zero-knowledge envelope encryption
+- **Backend Encryption Key:** Stored in Worker secrets, used ONLY for encrypting DEKs in envelope encryption (NOT user secrets)
 
 **Data in Transit:**
 - **Client ↔ Workers:** TLS 1.3 with modern cipher suites
@@ -1269,44 +1284,62 @@ async function validateJWT(token: string, supabaseUrl: string): Promise<User | n
 - **Request/Response Processing:** Encrypted data passes through but never decrypted (zero-knowledge)
 - **Logging:** Secrets redacted from logs using sanitization
 
-**Master Encryption Key Handling:**
+**Zero-Knowledge Architecture - Critical Security Note:**
 
 ```typescript
-// Master key is stored in Worker secrets
-// Used for envelope encryption of secrets in Supabase
+/*
+ * ZERO-KNOWLEDGE ENCRYPTION MODEL
+ *
+ * User's Master Key:
+ * - Derived client-side from user password via PBKDF2 (600k iterations)
+ * - NEVER transmitted to server
+ * - NEVER stored on server
+ * - Used to encrypt/decrypt user secrets (client-side only)
+ *
+ * Backend Encryption Key (stored in Worker secrets):
+ * - Used ONLY for encrypting Data Encryption Keys (DEKs) in envelope encryption
+ * - NOT used to encrypt user secrets directly
+ * - Server can encrypt DEKs but cannot decrypt user secrets
+ *
+ * Envelope Encryption Flow:
+ * 1. Client generates random DEK
+ * 2. Client encrypts secret with DEK (AES-256-GCM)
+ * 3. Client encrypts DEK with user's master key (client-side)
+ * 4. Server encrypts the encrypted DEK with backend key (double encryption)
+ * 5. Server stores: encrypted_secret + double_encrypted_dek
+ *
+ * Result: Server cannot decrypt user secrets even with backend key
+ */
 
-// IMPORTANT: This key must be rotated if:
-// 1. Employee with access leaves company
-// 2. Suspected compromise
-// 3. Regular rotation schedule (quarterly)
-
-async function rotatemasterKey(oldKey: string, newKey: string, env: Env) {
-  // 1. Fetch all encrypted secrets from Supabase
+// Backend key rotation function
+async function rotateBackendKey(oldKey: string, newKey: string, env: Env) {
+  // 1. Fetch all encrypted DEKs from Supabase
   const { data: secrets } = await supabase
     .from('secrets')
     .select('*');
 
-  // 2. Re-encrypt each secret with new key
+  // 2. Re-encrypt each DEK with new backend key
+  // NOTE: User secrets remain encrypted with user's master key
   for (const secret of secrets) {
-    // Decrypt with old key
-    const decrypted = await decrypt(secret.encrypted_value, oldKey);
+    // Decrypt DEK with old backend key (DEK is still encrypted with user key!)
+    const encryptedDEK = await decrypt(secret.encrypted_dek, oldKey);
 
-    // Encrypt with new key
-    const reencrypted = await encrypt(decrypted, newKey);
+    // Re-encrypt DEK with new backend key
+    const reencryptedDEK = await encrypt(encryptedDEK, newKey);
 
     // Update in database
     await supabase
       .from('secrets')
-      .update({ encrypted_value: reencrypted })
+      .update({ encrypted_dek: reencryptedDEK })
       .eq('id', secret.id);
   }
 
   // 3. Update Worker secret
-  // wrangler secret put MASTER_ENCRYPTION_KEY
+  // wrangler secret put BACKEND_ENCRYPTION_KEY
 
   // 4. Audit log rotation
   await logAuditEvent({
-    action: 'master_key_rotated',
+    action: 'backend_key_rotated',
     timestamp: new Date().toISOString(),
   });
 }
@@ -1825,19 +1858,19 @@ Need to implement rate limiting to prevent API abuse. Options include in-memory 
 
 ---
 
-### Decision 2: Store Master Encryption Key in Worker Secrets
+### Decision 2: Store Backend Encryption Key in Worker Secrets
 
 **Date:** 2025-10-30
 
 **Context:**
-Zero-knowledge architecture requires master encryption key to be accessible to Workers for envelope encryption. Options include Worker secrets, external key management service (KMS), or Supabase.
+Zero-knowledge architecture requires backend encryption key for envelope encryption of DEKs. User's master key is NEVER transmitted to server (derived client-side). Options include Worker secrets, external key management service (KMS), or Supabase.
 
 **Options:**
 1. **Worker Secrets** - Encrypted at rest, accessed via env variable
 2. **External KMS (AWS KMS, Vault)** - Centralized key management, audit logging
 3. **Supabase** - Store encrypted in database
 
-**Decision:** Store master encryption key in Worker Secrets
+**Decision:** Store backend encryption key in Worker Secrets
 
 **Rationale:**
 - Worker secrets are encrypted at rest by Cloudflare
@@ -1845,9 +1878,10 @@ Zero-knowledge architecture requires master encryption key to be accessible to W
 - Simple to rotate via Wrangler CLI
 - Reduces attack surface (fewer systems with key access)
 - Acceptable security posture for MVP
+- Backend key only encrypts DEKs, NOT user secrets (zero-knowledge maintained)
 
 **Consequences:**
-- Key rotation requires manual process (re-encrypt all secrets)
+- Key rotation requires manual process (re-encrypt all DEKs)
 - Limited audit logging (must implement custom logging)
 - Must trust Cloudflare security (acceptable trade-off)
 - Future: may migrate to external KMS for enterprise compliance
@@ -1886,7 +1920,7 @@ When Supabase is experiencing issues, continued requests can worsen the situatio
 ### Technical Dependencies
 
 **Must exist before implementation:**
-- [ ] `05-api/api-rest-design.md` - REST API design patterns and conventions (⚠️ **Missing but referenced**)
+- [x] `05-api/api-rest-design.md` - REST API design patterns and conventions
 - [x] `02-architecture/system-overview.md` - Overall system architecture context
 - [x] `TECH-STACK.md` - Technology decisions and versions
 
@@ -1958,7 +1992,7 @@ When Supabase is experiencing issues, continued requests can worsen the situatio
 ### Known Issues
 - Rate limiting is eventually consistent across regions (< 60s delay)
 - Circuit breaker thresholds need tuning based on production traffic
-- Master encryption key rotation requires manual re-encryption process
+- Backend encryption key rotation requires manual re-encryption process for DEKs
 - KV storage is not suitable for strong consistency requirements
 
 ### Next Review Date

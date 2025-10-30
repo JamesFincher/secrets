@@ -967,6 +967,17 @@ export const apiClient = new APIClient(
 );
 ```
 
+**API Endpoint Documentation Cross-References:**
+
+The API Client Layer interacts with the following documented API endpoints:
+
+- **Authentication Endpoints:** See `05-api/endpoints/auth-endpoints.md` for complete authentication API specifications including login, logout, OAuth flows, token refresh, and MFA endpoints
+- **Secrets Management Endpoints:** See `05-api/endpoints/secrets-endpoints.md` for secrets CRUD operations, encryption/decryption flows, secret rotation, and filtering patterns
+- **Projects & Environments Endpoints:** See `05-api/endpoints/projects-endpoints.md` for project and environment management APIs
+- **REST API Design Patterns:** See `05-api/api-rest-design.md` for API conventions, error handling standards, rate limiting, pagination, and authentication patterns used across all endpoints
+
+**Important:** All API requests must follow the authentication pattern documented in `05-api/endpoints/auth-endpoints.md` using JWT Bearer tokens. Error responses follow the standardized format defined in `05-api/api-rest-design.md`.
+
 ---
 
 ## Data Flow
@@ -1595,7 +1606,7 @@ Not applicable (serverless frontend on CDN).
 ### Technical Dependencies
 
 **Must exist before implementation:**
-- [ ] `05-api/api-rest-design.md` - REST API specification (dependency declared but file doesn't exist yet)
+- [x] `05-api/api-rest-design.md` - REST API specification
 - [x] `03-security/auth/authentication-flow.md` - Authentication flows
 - [x] `TECH-STACK.md` - Technology stack decisions
 - [x] `02-architecture/system-overview.md` - System architecture

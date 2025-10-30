@@ -484,7 +484,7 @@ Dependencies: [list of docs this depends on]
 **File naming:**
 - Kebab-case: `feature-name.md`
 - Descriptive: `secret-card-component.md` not `component1.md`
-- Prefixed by category when useful: `arch-`, `db-`, `feature-`, `api-`, `ops-`
+- No prefixes needed - folder structure provides context
 
 ---
 
@@ -700,7 +700,7 @@ Dependencies: [comma-separated list of files]
 
 **Claude Code should:**
 1. Check `DOCUMENTATION-ROADMAP.md` → Find it's in Phase 4
-2. Check dependencies: `api-endpoints-secrets.md`, `arch-security-model.md`
+2. Check dependencies: `05-api/endpoints/secrets-endpoints.md`, `03-security/security-model.md`
 3. Spawn Explore agent to find related content
 4. **Spawn 5 agents in PARALLEL (one message):**
    - Agent 1: Create `08-features/ai-assistant/ai-assistant-overview.md`

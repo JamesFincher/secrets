@@ -1,12 +1,13 @@
-# Abyrith Tech Stack Specification
-
-**Version:** 1.0.0
-**Last Updated:** 2025-10-29
-**Owner:** Engineering Lead
-**Status:** Approved
-**Dependencies:** `02-architecture/system-overview.md`
-
 ---
+Document: Abyrith Tech Stack Specification
+Version: 1.0.0
+Last Updated: 2025-10-30
+Owner: Engineering Lead
+Status: Approved
+Dependencies: 02-architecture/system-overview.md
+---
+
+# Abyrith Tech Stack Specification
 
 ## Tech Stack Overview
 

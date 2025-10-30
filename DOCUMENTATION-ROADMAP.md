@@ -1,10 +1,13 @@
-# Abyrith Documentation Roadmap
-
-**Version:** 1.0
-**Last Updated:** 2025-10-29
-**Status:** Planning Phase
-
 ---
+Document: Abyrith Documentation Roadmap
+Version: 1.0.0
+Last Updated: 2025-10-30
+Owner: Engineering Lead
+Status: Approved
+Dependencies: FOLDER-STRUCTURE.md, TECH-STACK.md
+---
+
+# Abyrith Documentation Roadmap
 
 ## Documentation Standards & Rules
 
@@ -32,13 +35,13 @@ Dependencies: [List of docs this depends on]
 
 **File Naming Convention:**
 - Use kebab-case: `database-schema-design.md`
-- Prefix by category: `arch-`, `db-`, `feature-`, `api-`, `ops-`
+- Organize by folder structure with descriptive names
 - Examples:
-  - `arch-security-model.md`
-  - `db-schema-secrets.md`
-  - `feature-ai-assistant.md`
-  - `api-rest-endpoints.md`
-  - `ops-deployment-runbook.md`
+  - `03-security/security-model.md`
+  - `04-database/schemas/secrets-metadata.md`
+  - `08-features/ai-assistant/ai-assistant-overview.md`
+  - `05-api/api-rest-design.md`
+  - `10-operations/deployment/deployment-runbook.md`
 
 **Document Structure Template:**
 ```markdown
@@ -153,7 +156,7 @@ Dependencies: [List of docs this depends on]
 
 **Purpose:** Define the security model and authentication flows. Everything builds on this.
 
-- [ ] **`03-security/security-model.md`** - Comprehensive security architecture
+- [x] **`03-security/security-model.md`** - Comprehensive security architecture
   - Dependencies: `GLOSSARY.md`
   - Owner: Security Lead / Eng Lead
   - Contents:
@@ -272,8 +275,8 @@ Dependencies: [List of docs this depends on]
 
 **Purpose:** Define all data models and relationships. API and features depend on this.
 
-- [ ] **`db-schema-overview.md`** - Database architecture overview
-  - Dependencies: arch-security-model.md, arch-rbac-permissions.md
+- [x] **`04-database/database-overview.md`** - Database architecture overview
+  - Dependencies: 03-security/security-model.md, 03-security/rbac/permissions-model.md
   - Owner: Database Architect / Backend Lead
   - Contents:
     - PostgreSQL schema overview
@@ -282,8 +285,8 @@ Dependencies: [List of docs this depends on]
     - Backup and recovery strategy
     - Migration strategy
 
-- [ ] **`db-schema-users-orgs.md`** - Users and organizations schema
-  - Dependencies: db-schema-overview.md, arch-auth-flow.md
+- [x] **`04-database/schemas/users-organizations.md`** - Users and organizations schema
+  - Dependencies: 04-database/database-overview.md, 03-security/auth/authentication-flow.md
   - Owner: Backend Engineer
   - Contents:
     - `auth.users` table (Supabase managed)
@@ -293,8 +296,8 @@ Dependencies: [List of docs this depends on]
     - RLS policies for each table
     - Indexes and performance considerations
 
-- [ ] **`db-schema-secrets.md`** - Secrets and projects schema
-  - Dependencies: db-schema-users-orgs.md, arch-security-model.md
+- [x] **`04-database/schemas/secrets-metadata.md`** - Secrets and projects schema
+  - Dependencies: 04-database/schemas/users-organizations.md, 03-security/security-model.md
   - Owner: Backend Engineer
   - Contents:
     - `projects` table
@@ -305,8 +308,8 @@ Dependencies: [List of docs this depends on]
     - RLS policies ensuring data isolation
     - Encryption at rest details
 
-- [ ] **`db-schema-audit-logs.md`** - Audit and activity tracking
-  - Dependencies: db-schema-secrets.md
+- [x] **`04-database/schemas/audit-logs.md`** - Audit and activity tracking
+  - Dependencies: 04-database/schemas/secrets-metadata.md
   - Owner: Backend Engineer
   - Contents:
     - `audit_logs` table
@@ -315,8 +318,8 @@ Dependencies: [List of docs this depends on]
     - Retention policies
     - Compliance export queries
 
-- [ ] **`db-migrations-guide.md`** - Database migration procedures
-  - Dependencies: All db-schema-*.md files
+- [x] **`04-database/migrations/migration-guide.md`** - Database migration procedures
+  - Dependencies: All 04-database/schemas/*.md files
   - Owner: Backend Engineer
   - Contents:
     - Supabase migration workflow
@@ -333,8 +336,8 @@ Dependencies: [List of docs this depends on]
 
 **Purpose:** Define how services communicate and how code is deployed.
 
-- [ ] **`api-rest-design.md`** - REST API specification
-  - Dependencies: All db-schema-*.md files, arch-auth-flow.md
+- [x] **`05-api/api-rest-design.md`** - REST API specification
+  - Dependencies: All 04-database/schemas/*.md files, 03-security/auth/authentication-flow.md
   - Owner: Backend Engineer
   - Contents:
     - Endpoint structure and naming conventions
@@ -344,8 +347,8 @@ Dependencies: [List of docs this depends on]
     - Rate limiting strategy
     - Pagination and filtering patterns
 
-- [ ] **`api-endpoints-secrets.md`** - Secrets management API
-  - Dependencies: api-rest-design.md, db-schema-secrets.md
+- [x] **`05-api/endpoints/secrets-endpoints.md`** - Secrets management API
+  - Dependencies: 05-api/api-rest-design.md, 04-database/schemas/secrets-metadata.md
   - Owner: Backend Engineer
   - Contents:
     - `POST /secrets` - Create secret
@@ -355,8 +358,8 @@ Dependencies: [List of docs this depends on]
     - `GET /projects/:id/secrets` - List project secrets
     - Request/response examples for each endpoint
 
-- [ ] **`api-endpoints-projects.md`** - Project management API
-  - Dependencies: api-rest-design.md, db-schema-secrets.md
+- [x] **`05-api/endpoints/projects-endpoints.md`** - Project management API
+  - Dependencies: 05-api/api-rest-design.md, 04-database/schemas/secrets-metadata.md
   - Owner: Backend Engineer
   - Contents:
     - Project CRUD operations
@@ -364,8 +367,8 @@ Dependencies: [List of docs this depends on]
     - Team member management
     - Project settings
 
-- [ ] **`api-endpoints-auth.md`** - Authentication API
-  - Dependencies: api-rest-design.md, arch-auth-flow.md
+- [x] **`05-api/endpoints/auth-endpoints.md`** - Authentication API
+  - Dependencies: 05-api/api-rest-design.md, 03-security/auth/authentication-flow.md
   - Owner: Backend Engineer
   - Contents:
     - Login/logout flows
@@ -373,8 +376,8 @@ Dependencies: [List of docs this depends on]
     - Password reset
     - MFA enrollment and verification
 
-- [ ] **`arch-cloudflare-workers.md`** - Cloudflare Workers architecture
-  - Dependencies: api-rest-design.md
+- [x] **`06-backend/cloudflare-workers/workers-architecture.md`** - Cloudflare Workers architecture
+  - Dependencies: 05-api/api-rest-design.md
   - Owner: Full-Stack Engineer
   - Contents:
     - Workers as API gateway
@@ -384,8 +387,8 @@ Dependencies: [List of docs this depends on]
     - Environment variable management
     - Secrets storage in Workers (for master encryption key)
 
-- [ ] **`arch-deployment-pipeline.md`** - CI/CD and deployment
-  - Dependencies: arch-cloudflare-workers.md
+- [x] **`10-operations/deployment/deployment-pipeline.md`** - CI/CD and deployment
+  - Dependencies: 06-backend/cloudflare-workers/workers-architecture.md
   - Owner: DevOps / Eng Lead
   - Contents:
     - GitHub Actions workflows
@@ -406,8 +409,8 @@ Dependencies: [List of docs this depends on]
 
 #### Core Features (MVP)
 
-- [ ] **`feature-ai-assistant.md`** - AI Secret Assistant
-  - Dependencies: api-endpoints-secrets.md, arch-security-model.md
+- [x] **`08-features/ai-assistant/ai-assistant-overview.md`** - AI Secret Assistant
+  - Dependencies: 05-api/endpoints/secrets-endpoints.md, 03-security/security-model.md
   - Owner: AI/Product Engineer
   - Contents:
     - Claude API integration details
@@ -419,8 +422,8 @@ Dependencies: [List of docs this depends on]
     - Model selection logic (Haiku vs. Sonnet vs. Extended Thinking)
     - Cost estimation and usage tracking
 
-- [ ] **`feature-zero-knowledge-encryption.md`** - Encryption UX flow
-  - Dependencies: arch-security-model.md, api-endpoints-secrets.md
+- [x] **`08-features/zero-knowledge-vault/encryption-ux-flow.md`** - Encryption UX flow
+  - Dependencies: 03-security/security-model.md, 05-api/endpoints/secrets-endpoints.md
   - Owner: Frontend + Backend Engineer
   - Contents:
     - Master password setup flow
@@ -431,8 +434,8 @@ Dependencies: [List of docs this depends on]
     - Key management and recovery options
     - "What if I forget my password?" flow
 
-- [ ] **`feature-project-management.md`** - Projects and environments
-  - Dependencies: api-endpoints-projects.md, db-schema-secrets.md
+- [x] **`08-features/project-management/project-management-overview.md`** - Projects and environments
+  - Dependencies: 05-api/endpoints/projects-endpoints.md, 04-database/schemas/secrets-metadata.md
   - Owner: Frontend Engineer
   - Contents:
     - Project creation and organization
@@ -441,8 +444,8 @@ Dependencies: [List of docs this depends on]
     - Project settings and metadata
     - Archive and delete flows
 
-- [ ] **`feature-team-collaboration.md`** - Team sharing and permissions
-  - Dependencies: arch-rbac-permissions.md, api-endpoints-projects.md
+- [x] **`08-features/team-collaboration/team-collaboration-overview.md`** - Team sharing and permissions
+  - Dependencies: 03-security/rbac/permissions-model.md, 05-api/endpoints/projects-endpoints.md
   - Owner: Frontend + Backend Engineer
   - Contents:
     - Team invitation flow
@@ -452,8 +455,8 @@ Dependencies: [List of docs this depends on]
     - Approval workflows for production secrets
     - One-time secret sharing
 
-- [ ] **`feature-audit-logs.md`** - Audit trail and compliance
-  - Dependencies: db-schema-audit-logs.md, feature-team-collaboration.md
+- [x] **`08-features/audit-logs/audit-logs-overview.md`** - Audit trail and compliance
+  - Dependencies: 04-database/schemas/audit-logs.md, 08-features/team-collaboration/team-collaboration-overview.md
   - Owner: Backend Engineer
   - Contents:
     - What gets logged (create, read, update, delete events)
@@ -464,8 +467,8 @@ Dependencies: [List of docs this depends on]
 
 #### Post-MVP Features
 
-- [ ] **`feature-usage-tracking.md`** - Cost and usage intelligence
-  - Dependencies: feature-ai-assistant.md, api-endpoints-secrets.md
+- [ ] **`08-features/usage-tracking/usage-tracking-overview.md`** - Cost and usage intelligence
+  - Dependencies: 08-features/ai-assistant/ai-assistant-overview.md, 05-api/endpoints/secrets-endpoints.md
   - Owner: Product + Backend Engineer
   - Contents:
     - API usage tracking integration
@@ -474,8 +477,8 @@ Dependencies: [List of docs this depends on]
     - Service integration APIs (where available)
     - User-reported usage fallback
 
-- [ ] **`feature-browser-extension.md`** - Browser autofill extension
-  - Dependencies: feature-zero-knowledge-encryption.md, api-endpoints-secrets.md
+- [ ] **`08-features/browser-extension/browser-extension-overview.md`** - Browser autofill extension
+  - Dependencies: 08-features/zero-knowledge-vault/encryption-ux-flow.md, 05-api/endpoints/secrets-endpoints.md
   - Owner: Frontend Engineer
   - Contents:
     - Chrome/Firefox extension architecture
@@ -484,8 +487,8 @@ Dependencies: [List of docs this depends on]
     - Extension authentication flow
     - Supported websites and patterns
 
-- [ ] **`feature-cli-tool.md`** - Command-line interface
-  - Dependencies: api-endpoints-secrets.md, arch-auth-flow.md
+- [ ] **`08-features/cli-tool/cli-tool-overview.md`** - Command-line interface
+  - Dependencies: 05-api/endpoints/secrets-endpoints.md, 03-security/auth/authentication-flow.md
   - Owner: Backend/CLI Engineer
   - Contents:
     - CLI architecture (Node.js or Go)
@@ -503,8 +506,8 @@ Dependencies: [List of docs this depends on]
 
 **Purpose:** Define how Abyrith integrates with external tools and ecosystems.
 
-- [ ] **`integration-mcp-overview.md`** - Model Context Protocol architecture
-  - Dependencies: All Phase 4 feature docs, api-endpoints-secrets.md
+- [x] **`09-integrations/mcp/mcp-overview.md`** - Model Context Protocol architecture
+  - Dependencies: All Phase 4 feature docs, 05-api/endpoints/secrets-endpoints.md
   - Owner: AI/Integration Engineer
   - Contents:
     - What is MCP and why we use it
@@ -513,8 +516,8 @@ Dependencies: [List of docs this depends on]
     - Authentication and authorization for MCP
     - Rate limiting for AI tools
 
-- [ ] **`integration-mcp-secrets-server.md`** - MCP Secrets Server spec
-  - Dependencies: integration-mcp-overview.md
+- [x] **`09-integrations/mcp/mcp-secrets-server.md`** - MCP Secrets Server spec
+  - Dependencies: 09-integrations/mcp/mcp-overview.md
   - Owner: Backend Engineer
   - Contents:
     - `mcp_secrets_list` tool
@@ -525,8 +528,8 @@ Dependencies: [List of docs this depends on]
     - Time-limited access grants
     - Audit logging for MCP requests
 
-- [ ] **`integration-claude-code.md`** - Claude Code integration
-  - Dependencies: integration-mcp-secrets-server.md
+- [x] **`09-integrations/claude-code/claude-code-integration.md`** - Claude Code integration
+  - Dependencies: 09-integrations/mcp/mcp-secrets-server.md
   - Owner: AI Engineer
   - Contents:
     - How Claude Code discovers Abyrith MCP server
@@ -535,16 +538,16 @@ Dependencies: [List of docs this depends on]
     - Troubleshooting common issues
     - User setup instructions
 
-- [ ] **`integration-cursor.md`** - Cursor IDE integration
-  - Dependencies: integration-mcp-secrets-server.md
+- [x] **`09-integrations/cursor/cursor-integration.md`** - Cursor IDE integration
+  - Dependencies: 09-integrations/mcp/mcp-secrets-server.md
   - Owner: AI Engineer
   - Contents:
     - Cursor configuration for Abyrith
     - How Cursor uses MCP
     - Setup guide for developers
 
-- [ ] **`integration-firecrawl.md`** - FireCrawl API documentation scraping
-  - Dependencies: feature-ai-assistant.md
+- [x] **`09-integrations/firecrawl/firecrawl-integration.md`** - FireCrawl API documentation scraping
+  - Dependencies: 08-features/ai-assistant/ai-assistant-overview.md
   - Owner: Backend Engineer
   - Contents:
     - FireCrawl API integration
@@ -553,8 +556,8 @@ Dependencies: [List of docs this depends on]
     - Parsing and extracting key information
     - Fallback when FireCrawl fails
 
-- [ ] **`integration-webhooks.md`** - Webhook system for notifications
-  - Dependencies: api-rest-design.md
+- [x] **`09-integrations/webhooks/webhooks-integration.md`** - Webhook system for notifications
+  - Dependencies: 05-api/api-rest-design.md
   - Owner: Backend Engineer
   - Contents:
     - Webhook event types (secret accessed, team member added, etc.)
@@ -571,8 +574,8 @@ Dependencies: [List of docs this depends on]
 
 **Purpose:** Document the frontend architecture and reusable components.
 
-- [ ] **`frontend-architecture.md`** - React/Next.js architecture
-  - Dependencies: api-rest-design.md, arch-auth-flow.md
+- [x] **`07-frontend/frontend-architecture.md`** - React/Next.js architecture
+  - Dependencies: 05-api/api-rest-design.md, 03-security/auth/authentication-flow.md
   - Owner: Frontend Lead
   - Contents:
     - Next.js project structure
@@ -582,8 +585,8 @@ Dependencies: [List of docs this depends on]
     - API client layer
     - Error handling and loading states
 
-- [ ] **`frontend-component-library.md`** - Reusable component catalog
-  - Dependencies: frontend-architecture.md
+- [x] **`07-frontend/components/component-library.md`** - Reusable component catalog
+  - Dependencies: 07-frontend/frontend-architecture.md
   - Owner: Frontend Engineer
   - Contents:
     - Component naming conventions
@@ -591,8 +594,8 @@ Dependencies: [List of docs this depends on]
     - Common components (SecretCard, ProjectSelector, AIChat, etc.)
     - Component props and usage examples
 
-- [ ] **`frontend-ai-chat-interface.md`** - AI chat UI/UX
-  - Dependencies: feature-ai-assistant.md, frontend-architecture.md
+- [x] **`07-frontend/ai/ai-chat-interface.md`** - AI chat UI/UX
+  - Dependencies: 08-features/ai-assistant/ai-assistant-overview.md, 07-frontend/frontend-architecture.md
   - Owner: Frontend + Product
   - Contents:
     - Chat UI component architecture
@@ -610,8 +613,8 @@ Dependencies: [List of docs this depends on]
 
 **Purpose:** Document how to run, monitor, and maintain the platform in production.
 
-- [ ] **`ops-deployment-runbook.md`** - Deployment procedures
-  - Dependencies: arch-deployment-pipeline.md
+- [x] **`10-operations/deployment/deployment-runbook.md`** - Deployment procedures
+  - Dependencies: 10-operations/deployment/deployment-pipeline.md
   - Owner: DevOps / Eng Lead
   - Contents:
     - Pre-deployment checklist
@@ -621,7 +624,7 @@ Dependencies: [List of docs this depends on]
     - Post-deployment verification
     - Emergency hotfix process
 
-- [ ] **`ops-monitoring-alerting.md`** - Monitoring and alerting setup
+- [x] **`10-operations/monitoring/monitoring-alerting.md`** - Monitoring and alerting setup
   - Dependencies: None (operational concern)
   - Owner: DevOps / Eng Lead
   - Contents:
@@ -631,8 +634,8 @@ Dependencies: [List of docs this depends on]
     - Alert configuration (PagerDuty, Slack)
     - Incident response procedures
 
-- [ ] **`ops-incident-response.md`** - Incident response playbook
-  - Dependencies: ops-monitoring-alerting.md
+- [x] **`10-operations/incidents/incident-response.md`** - Incident response playbook
+  - Dependencies: 10-operations/monitoring/monitoring-alerting.md
   - Owner: Eng Lead
   - Contents:
     - Severity classification (P0, P1, P2, P3)
@@ -641,8 +644,8 @@ Dependencies: [List of docs this depends on]
     - Post-mortem template
     - Common incidents and resolutions
 
-- [ ] **`ops-database-maintenance.md`** - Database operations
-  - Dependencies: db-migrations-guide.md
+- [x] **`10-operations/database/database-maintenance.md`** - Database operations
+  - Dependencies: 04-database/migrations/migration-guide.md
   - Owner: Backend Engineer
   - Contents:
     - Backup verification procedures
@@ -652,8 +655,8 @@ Dependencies: [List of docs this depends on]
     - Connection pool tuning
     - Scaling procedures
 
-- [ ] **`ops-security-runbook.md`** - Security incident response
-  - Dependencies: arch-security-model.md, ops-incident-response.md
+- [x] **`10-operations/security/security-runbook.md`** - Security incident response
+  - Dependencies: 03-security/security-model.md, 10-operations/incidents/incident-response.md
   - Owner: Security Lead / Eng Lead
   - Contents:
     - Suspected breach procedures
@@ -670,8 +673,8 @@ Dependencies: [List of docs this depends on]
 
 **Purpose:** Document enterprise features and compliance capabilities.
 
-- [ ] **`feature-sso-enterprise.md`** - Enterprise SSO integration
-  - Dependencies: arch-auth-flow.md, arch-rbac-permissions.md
+- [ ] **`08-features/sso-enterprise/sso-enterprise-overview.md`** - Enterprise SSO integration
+  - Dependencies: 03-security/auth/authentication-flow.md, 03-security/rbac/permissions-model.md
   - Owner: Backend Engineer
   - Contents:
     - SAML 2.0 integration
@@ -680,8 +683,8 @@ Dependencies: [List of docs this depends on]
     - SCIM for user provisioning
     - Organization-wide SSO enforcement
 
-- [ ] **`compliance-soc2.md`** - SOC 2 compliance documentation
-  - Dependencies: feature-audit-logs.md, arch-security-model.md
+- [ ] **`03-security/compliance/soc2.md`** - SOC 2 compliance documentation
+  - Dependencies: 08-features/audit-logs/audit-logs-overview.md, 03-security/security-model.md
   - Owner: Security Lead / Product
   - Contents:
     - SOC 2 Type II requirements mapping
@@ -691,8 +694,8 @@ Dependencies: [List of docs this depends on]
     - Incident response documentation
     - Continuous monitoring
 
-- [ ] **`compliance-gdpr.md`** - GDPR compliance guide
-  - Dependencies: db-schema-users-orgs.md, feature-audit-logs.md
+- [ ] **`03-security/compliance/gdpr.md`** - GDPR compliance guide
+  - Dependencies: 04-database/schemas/users-organizations.md, 08-features/audit-logs/audit-logs-overview.md
   - Owner: Legal + Engineering
   - Contents:
     - Data subject rights (access, deletion, portability)
@@ -701,8 +704,8 @@ Dependencies: [List of docs this depends on]
     - User consent flows
     - Data export functionality
 
-- [ ] **`compliance-iso27001.md`** - ISO 27001 compliance
-  - Dependencies: arch-security-model.md, ops-security-runbook.md
+- [ ] **`03-security/compliance/iso27001.md`** - ISO 27001 compliance
+  - Dependencies: 03-security/security-model.md, 10-operations/security/security-runbook.md
   - Owner: Security Lead
   - Contents:
     - Information security management system (ISMS)
@@ -718,8 +721,8 @@ Dependencies: [List of docs this depends on]
 
 **Purpose:** Ensure developers can contribute effectively with proper testing.
 
-- [ ] **`dev-local-setup.md`** - Local development environment setup
-  - Dependencies: arch-deployment-pipeline.md, db-migrations-guide.md
+- [ ] **`11-development/local-setup.md`** - Local development environment setup
+  - Dependencies: 10-operations/deployment/deployment-pipeline.md, 04-database/migrations/migration-guide.md
   - Owner: Eng Lead
   - Contents:
     - Prerequisites (Node.js, PostgreSQL, Supabase CLI)
@@ -729,8 +732,8 @@ Dependencies: [List of docs this depends on]
     - Running dev servers (frontend + Workers)
     - Common troubleshooting
 
-- [ ] **`dev-testing-strategy.md`** - Testing approach and guidelines
-  - Dependencies: frontend-architecture.md, api-rest-design.md
+- [ ] **`11-development/testing/testing-strategy.md`** - Testing approach and guidelines
+  - Dependencies: 07-frontend/frontend-architecture.md, 05-api/api-rest-design.md
   - Owner: Eng Lead
   - Contents:
     - Unit testing (Jest)
@@ -740,8 +743,8 @@ Dependencies: [List of docs this depends on]
     - Load testing strategy
     - Test coverage requirements (70%+ for critical paths)
 
-- [ ] **`dev-code-review-checklist.md`** - Code review standards
-  - Dependencies: CONTRIBUTING.md, dev-testing-strategy.md
+- [ ] **`11-development/code-review-checklist.md`** - Code review standards
+  - Dependencies: CONTRIBUTING.md, 11-development/testing/testing-strategy.md
   - Owner: Eng Lead
   - Contents:
     - Code quality checklist
@@ -759,8 +762,8 @@ Dependencies: [List of docs this depends on]
 
 **Purpose:** Help end-users understand and use the platform.
 
-- [ ] **`user-guide-getting-started.md`** - New user onboarding
-  - Dependencies: All feature docs
+- [ ] **`12-user-docs/getting-started.md`** - New user onboarding
+  - Dependencies: All 08-features/* docs
   - Owner: Product + Technical Writer
   - Contents:
     - Account creation
@@ -769,8 +772,8 @@ Dependencies: [List of docs this depends on]
     - Adding first secret
     - Inviting team members
 
-- [ ] **`user-guide-ai-assistant.md`** - Using the AI assistant
-  - Dependencies: feature-ai-assistant.md
+- [ ] **`12-user-docs/ai-assistant-guide.md`** - Using the AI assistant
+  - Dependencies: 08-features/ai-assistant/ai-assistant-overview.md
   - Owner: Product
   - Contents:
     - How to ask for help getting API keys
@@ -778,8 +781,8 @@ Dependencies: [List of docs this depends on]
     - Following guided acquisition flows
     - Tips for effective AI interactions
 
-- [ ] **`user-guide-mcp-setup.md`** - Setting up MCP with Claude/Cursor
-  - Dependencies: integration-claude-code.md, integration-cursor.md
+- [ ] **`12-user-docs/mcp-setup-guide.md`** - Setting up MCP with Claude/Cursor
+  - Dependencies: 09-integrations/claude-code/claude-code-integration.md, 09-integrations/cursor/cursor-integration.md
   - Owner: Developer Relations
   - Contents:
     - Installing MCP server
@@ -788,8 +791,8 @@ Dependencies: [List of docs this depends on]
     - Approving secret requests
     - Troubleshooting connection issues
 
-- [ ] **`user-guide-security-best-practices.md`** - Security guidance for users
-  - Dependencies: arch-security-model.md, feature-zero-knowledge-encryption.md
+- [ ] **`12-user-docs/security-best-practices.md`** - Security guidance for users
+  - Dependencies: 03-security/security-model.md, 08-features/zero-knowledge-vault/encryption-ux-flow.md
   - Owner: Security Lead + Product
   - Contents:
     - Choosing a strong master password
@@ -878,7 +881,7 @@ Phase 10 (User Docs) ← End-user help
 ## Next Steps
 
 1. **Start with Phase 0** - Create GLOSSARY.md first, then CONTRIBUTING.md
-2. **Security review** - Get security lead to start arch-security-model.md
+2. **Security review** - Get security lead to start 03-security/security-model.md
 3. **Parallel work** - While security is being documented, product can work on ROADMAP.md
 4. **Never skip phases** - Each phase builds on the previous
 5. **Review early, review often** - Don't wait until phase completion to review docs

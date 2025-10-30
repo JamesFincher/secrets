@@ -4,7 +4,7 @@ Version: 1.0.0
 Last Updated: 2025-10-30
 Owner: Backend Team
 Status: Draft
-Dependencies: 08-features/ai-assistant/ai-assistant-overview.md, TECH-STACK.md, 06-backend/cloudflare-workers/workers-overview.md
+Dependencies: 08-features/ai-assistant/ai-assistant-overview.md, TECH-STACK.md, 06-backend/cloudflare-workers/workers-architecture.md
 ---
 
 # FireCrawl API Integration
@@ -1675,7 +1675,7 @@ if (env.DEBUG_FIRECRAWL === 'true') {
 ### Technical Dependencies
 
 **Must exist before integration:**
-- [x] `06-backend/cloudflare-workers/workers-overview.md` - Worker architecture (VERIFIED)
+- [x] `06-backend/cloudflare-workers/workers-architecture.md` - Worker architecture (VERIFIED)
 - [x] `08-features/ai-assistant/ai-assistant-overview.md` - AI Assistant feature (VERIFIED)
 - [x] `TECH-STACK.md` - Technology specifications (VERIFIED)
 - [ ] Cloudflare Workers KV namespace configured (NEEDS SETUP)

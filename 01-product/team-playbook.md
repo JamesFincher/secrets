@@ -1,3 +1,12 @@
+---
+Document: Team Playbook
+Version: 1.0.0
+Last Updated: 2025-10-30
+Owner: Engineering Lead
+Status: Approved
+Dependencies: None
+---
+
 # Abyrith Team Playbook: Core Principles & Daily Practices
 
 ## Purpose of This Playbook

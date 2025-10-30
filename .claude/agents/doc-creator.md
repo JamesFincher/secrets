@@ -48,7 +48,7 @@ Before creating any document:
 Follow these strict naming rules from `FOLDER-STRUCTURE.md`:
 - Use kebab-case: `feature-name.md` NOT `Feature_Name.md` or `FeatureName.md`
 - Be descriptive: `secret-card-component.md` NOT `component1.md`
-- Use prefixes when helpful: `arch-`, `db-`, `feature-`, `api-`, `ops-`
+- No prefixes needed - folder structure provides context (e.g., `03-security/security-model.md` not `arch-security-model.md`)
 - Place file in the correct folder based on type
 
 ### 5. Terminology Consistency

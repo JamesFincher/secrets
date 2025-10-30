@@ -1,10 +1,15 @@
+---
+Document: Quick Start - Setting Up Documentation Structure
+Version: 1.0.0
+Last Updated: 2025-10-30
+Owner: Engineering Lead
+Status: Approved
+Dependencies: DOCUMENTATION-ROADMAP.md, FOLDER-STRUCTURE.md
+---
+
 # Quick Start: Setting Up Documentation Structure
 
-**Version:** 1.0
-**Last Updated:** 2025-10-29
 **Time to Complete:** ~15 minutes
-
----
 
 ## What This Guide Does
 
@@ -346,7 +351,7 @@ grep -r "Dependencies:" --include="*.md" | \
 **Step-by-step:**
 
 1. Check DOCUMENTATION-ROADMAP.md → Find "AI Assistant" in Phase 4
-2. Note dependencies: `api-endpoints-secrets.md`, `arch-security-model.md`
+2. Note dependencies: `05-api/endpoints/secrets-endpoints.md`, `03-security/security-model.md`
 3. Verify dependencies exist (they should if you followed the phases)
 4. Create: `08-features/ai-assistant/ai-assistant-overview.md`
 5. Use version header template

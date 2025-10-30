@@ -1002,10 +1002,10 @@ curl -X PUT https://api.abyrith.com/v1/secrets/770e8400-e29b-41d4-a716-446655440
 ### Technical Dependencies
 
 **Must exist before implementation:**
-- [ ] `04-database/schemas/secrets-metadata.md` - Database schema definition
-- [ ] `03-security/rbac/permissions-model.md` - Permission definitions
-- [ ] `05-api/api-rest-design.md` - API design patterns
-- [ ] `03-security/security-model.md` - Zero-knowledge encryption specification
+- [x] `04-database/schemas/secrets-metadata.md` - Database schema definition
+- [x] `03-security/rbac/permissions-model.md` - Permission definitions
+- [x] `05-api/api-rest-design.md` - API design patterns
+- [x] `03-security/security-model.md` - Zero-knowledge encryption specification
 
 **Related APIs:**
 - `05-api/endpoints/projects-endpoints.md` - Project management (projects and environments must exist before creating secrets)

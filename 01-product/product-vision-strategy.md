@@ -1,3 +1,12 @@
+---
+Document: Product Vision & Strategy
+Version: 1.0.0
+Last Updated: 2025-10-30
+Owner: Product Lead
+Status: Approved
+Dependencies: None
+---
+
 # Abyrith: Product Vision & Strategy
 
 ## Executive Summary

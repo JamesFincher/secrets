@@ -203,7 +203,8 @@ Alex tries to access secrets but forgot the master password.
                    ▼
 ┌──────────────────────────────────────────────────────────┐
 │          Supabase PostgreSQL (Data Layer)                │
-│  - secrets table (encrypted_value, encrypted_dek, nonce) │
+│  - secrets table (encrypted_value, encrypted_dek,        │
+│    secret_nonce, dek_nonce, auth_tag)                    │
 │  - user_encryption_keys table (pbkdf2_salt)              │
 │  - RLS policies (user isolation)                         │
 │  - CANNOT decrypt (no master key)                        │
@@ -423,8 +424,9 @@ Alex tries to access secrets but forgot the master password.
      key_name: "OPENAI_API_KEY",
      encrypted_value: base64(encryptedSecret),
      encrypted_dek: base64(encryptedDEK),
-     secret_nonce: base64(secretNonce),
+     secret_nonce: base64(secretNonce),  // Note: nonce = IV (Initialization Vector) for AES-GCM
      dek_nonce: base64(dekNonce),
+     auth_tag: base64(authTag),  // Authentication tag from AES-GCM encryption
      tags: ["ai", "api-key"]
    }
    ```
@@ -435,13 +437,13 @@ Alex tries to access secrets but forgot the master password.
      id, user_id, project_id, environment,
      service_name, key_name,
      encrypted_value, encrypted_dek,
-     secret_nonce, dek_nonce, tags
+     secret_nonce, dek_nonce, auth_tag, tags
    ) VALUES (
      gen_random_uuid(), 'user-uuid', 'project-uuid', 'development',
      'openai', 'OPENAI_API_KEY',
      decode('base64_blob', 'base64'), decode('base64_blob', 'base64'),
      decode('base64_nonce', 'base64'), decode('base64_nonce', 'base64'),
-     ARRAY['ai', 'api-key']
+     decode('base64_auth_tag', 'base64'), ARRAY['ai', 'api-key']
    );
    ```
 
@@ -504,6 +506,7 @@ Alex tries to access secrets but forgot the master password.
      encrypted_dek: "base64...",
      secret_nonce: "base64...",
      dek_nonce: "base64...",
+     auth_tag: "base64...",
      environment: "development",
      tags: ["ai", "api-key"]
    }
@@ -533,11 +536,18 @@ Alex tries to access secrets but forgot the master password.
    ```typescript
    const secretNonce = base64ToUint8Array(secret.secret_nonce);
    const encryptedValue = base64ToUint8Array(secret.encrypted_value);
+   const authTag = base64ToUint8Array(secret.auth_tag);
+
+   // Reconstruct ciphertext with auth tag appended (required by AES-GCM)
+   const ciphertextWithTag = new Uint8Array([
+     ...encryptedValue,
+     ...authTag
+   ]);
 
    const plaintextBuffer = await crypto.subtle.decrypt(
-     { name: 'AES-GCM', iv: secretNonce },
+     { name: 'AES-GCM', iv: secretNonce, tagLength: 128 },
      dek,
-     encryptedValue
+     ciphertextWithTag
    );
 
    const secretValue = new TextDecoder().decode(plaintextBuffer);
@@ -857,7 +867,7 @@ class EncryptionService {
    * Encrypts secret value using envelope encryption
    * @param plaintext - Secret value to encrypt
    * @param masterKey - User's master key
-   * @returns Encrypted secret, encrypted DEK, nonces
+   * @returns Encrypted secret, encrypted DEK, nonces, auth tag
    */
   async encryptSecret(
     plaintext: string,
@@ -871,14 +881,19 @@ class EncryptionService {
     );
 
     // Encrypt secret with DEK
-    const secretNonce = crypto.getRandomValues(new Uint8Array(12));
-    const encryptedSecret = await crypto.subtle.encrypt(
+    const secretNonce = crypto.getRandomValues(new Uint8Array(12)); // nonce = IV for AES-GCM
+    const encryptedSecretWithTag = await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv: secretNonce, tagLength: 128 },
       dek,
       new TextEncoder().encode(plaintext)
     );
 
-    // Export and encrypt DEK
+    // AES-GCM returns ciphertext with auth tag appended (last 16 bytes)
+    const encryptedSecretArray = new Uint8Array(encryptedSecretWithTag);
+    const authTag = encryptedSecretArray.slice(-16); // Extract 16-byte authentication tag
+    const encryptedValue = encryptedSecretArray.slice(0, -16); // Ciphertext without tag
+
+    // Export and encrypt DEK with master key
     const rawDEK = await crypto.subtle.exportKey('raw', dek);
     const dekNonce = crypto.getRandomValues(new Uint8Array(12));
     const encryptedDEK = await crypto.subtle.encrypt(
@@ -886,12 +901,15 @@ class EncryptionService {
       masterKey,
       rawDEK
     );
+    // Note: encryptedDEK includes its own auth tag (appended by AES-GCM)
+    // We store it as-is and don't separate the tag
 
     return {
-      encryptedValue: new Uint8Array(encryptedSecret),
-      encryptedDEK: new Uint8Array(encryptedDEK),
-      secretNonce,
-      dekNonce
+      encryptedValue,      // Secret ciphertext (without tag)
+      encryptedDEK: new Uint8Array(encryptedDEK),  // DEK ciphertext (with tag embedded)
+      secretNonce,         // IV for secret encryption
+      dekNonce,            // IV for DEK encryption
+      authTag              // Authentication tag for secret (stored separately)
     };
   }
 
@@ -905,13 +923,15 @@ class EncryptionService {
     encrypted: EncryptedSecret,
     masterKey: CryptoKey
   ): Promise<string> {
-    // Decrypt DEK
+    // Decrypt DEK with master key
+    // Note: encryptedDEK already includes its auth tag (embedded by AES-GCM)
     const rawDEK = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: encrypted.dekNonce, tagLength: 128 },
       masterKey,
-      encrypted.encryptedDEK
+      encrypted.encryptedDEK  // Auth tag is embedded in this
     );
 
+    // Import DEK for secret decryption
     const dek = await crypto.subtle.importKey(
       'raw',
       rawDEK,
@@ -920,11 +940,18 @@ class EncryptionService {
       ['decrypt']
     );
 
-    // Decrypt secret
+    // Reconstruct secret ciphertext with its auth tag
+    // AES-GCM decrypt() expects ciphertext with tag appended
+    const secretCiphertextWithTag = new Uint8Array([
+      ...encrypted.encryptedValue,  // Ciphertext
+      ...encrypted.authTag           // 16-byte authentication tag
+    ]);
+
+    // Decrypt secret value with DEK
     const plaintextBuffer = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: encrypted.secretNonce, tagLength: 128 },
       dek,
-      encrypted.encryptedValue
+      secretCiphertextWithTag
     );
 
     return new TextDecoder().decode(plaintextBuffer);
@@ -952,7 +979,7 @@ export default {
 
     // Validate encrypted blob format (NOT the content, can't decrypt)
     if (!body.encrypted_value || !body.encrypted_dek ||
-        !body.secret_nonce || !body.dek_nonce) {
+        !body.secret_nonce || !body.dek_nonce || !body.auth_tag) {
       return new Response('Missing required encryption fields', {
         status: 400
       });
@@ -1019,14 +1046,14 @@ INSERT INTO secrets (
   id, user_id, project_id, environment,
   service_name, key_name,
   encrypted_value, encrypted_dek,
-  secret_nonce, dek_nonce,
+  secret_nonce, dek_nonce, auth_tag,
   tags, created_at
 ) VALUES (
   gen_random_uuid(), $1, $2, $3,
   $4, $5,
   decode($6, 'base64'), decode($7, 'base64'),
-  decode($8, 'base64'), decode($9, 'base64'),
-  $10, NOW()
+  decode($8, 'base64'), decode($9, 'base64'), decode($10, 'base64'),
+  $11, NOW()
 );
 
 -- Retrieve encrypted secret
@@ -1036,6 +1063,7 @@ SELECT
   encode(encrypted_dek, 'base64') as encrypted_dek,
   encode(secret_nonce, 'base64') as secret_nonce,
   encode(dek_nonce, 'base64') as dek_nonce,
+  encode(auth_tag, 'base64') as auth_tag,
   environment, tags
 FROM secrets
 WHERE id = $1
@@ -1515,8 +1543,8 @@ test('User views secret with master password prompt', async ({ page, context }) 
 
 **Must exist before implementation:**
 - [x] `03-security/security-model.md` - Zero-knowledge architecture specification
-- [ ] `05-api/endpoints/secrets-endpoints.md` - API endpoint specifications (in progress)
-- [ ] `04-database/schemas/secrets-metadata.md` - Database schema (in progress)
+- [x] `05-api/endpoints/secrets-endpoints.md` - API endpoint specifications
+- [x] `04-database/schemas/secrets-metadata.md` - Database schema
 
 **External Services:**
 - Web Crypto API (browser standard, no external dependency)

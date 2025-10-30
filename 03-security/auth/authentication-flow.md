@@ -1275,10 +1275,10 @@ const handleLogin = async (email: string, accountPw: string, masterPw: string) =
 ### Technical Dependencies
 
 **Must exist before implementation:**
-- [ ] `03-security/security-model.md` - Zero-knowledge architecture defined
-- [ ] `04-database/schemas/users-orgs.md` - auth.users table schema (Supabase managed)
-- [ ] `GLOSSARY.md` - Terms like JWT, PBKDF2, OAuth defined
-- [ ] `TECH-STACK.md` - Supabase Auth, Web Crypto API, Cloudflare Workers specified
+- [x] `03-security/security-model.md` - Zero-knowledge architecture defined
+- [x] `04-database/schemas/users-organizations.md` - Users and organizations schema (Supabase managed)
+- [x] `GLOSSARY.md` - Terms like JWT, PBKDF2, OAuth defined
+- [x] `TECH-STACK.md` - Supabase Auth, Web Crypto API, Cloudflare Workers specified
 
 **External Services:**
 - Supabase Auth - Identity management, JWT generation, OAuth flows

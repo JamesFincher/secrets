@@ -1,7 +1,7 @@
 ---
 Document: Abyrith Glossary
-Version: 1.0.0
-Last Updated: 2025-10-29
+Version: 1.1.0
+Last Updated: 2025-10-30
 Owner: Product + Engineering
 Status: Draft
 Dependencies: None
@@ -53,7 +53,7 @@ Running code and storing data closer to end users (at the "edge" of the network)
 A distinct deployment context for an application, such as Development, Staging, or Production. Each environment typically has its own set of secrets to prevent production credentials from being used in testing.
 
 ### Envelope Encryption
-A security technique where data is encrypted with a data key, and that data key is then encrypted with a master key. This allows for efficient key rotation and enhanced security.
+A two-layer encryption pattern where data is encrypted with a Data Encryption Key (DEK), and that DEK is then encrypted with a Master Key. Think of it like putting a valuable document in a lockbox, then putting that lockbox inside a safe. This allows for efficient key rotation and enhanced security since you only need to re-encrypt the small DEK, not all your data.
 
 ### MCP (Model Context Protocol)
 An open standard developed by Anthropic that allows AI assistants like Claude Code to safely interact with external tools and services. Abyrith implements an MCP server to provide secrets to AI development tools.
@@ -111,7 +111,7 @@ An international standard for information security management systems (ISMS). En
 A random value used in encryption to ensure that encrypting the same data multiple times produces different encrypted outputs. Also called a "nonce."
 
 ### JWT (JSON Web Token)
-A compact, URL-safe token format used for authentication. Contains user identity and permissions, digitally signed to prevent tampering. Used by Supabase Auth in Abyrith.
+A stateless authentication token format that contains claims about a user (like their identity and permissions) encoded in a compact, URL-safe format. JWTs are digitally signed to prevent tampering, meaning the server can verify they haven't been modified without needing to look them up in a database. Think of it as a tamper-proof ID badge that proves who you are and what you're allowed to do. Used by Supabase Auth in Abyrith.
 
 ### Key Derivation
 The process of generating an encryption key from a password using algorithms like PBKDF2. Makes passwords suitable for cryptographic operations.
@@ -361,7 +361,7 @@ A set of rules and protocols that allows different software applications to comm
 A specific URL path where an API can be accessed to perform operations (e.g., `/secrets` or `/projects/:id`).
 
 ### API Gateway
-A server that acts as a single entry point for API requests, handling routing, authentication, and rate limiting.
+An edge computing layer that acts as a single entry point for all API requests, handling routing, authentication, rate limiting, and request processing. Think of it as a smart doorman for your API—it checks credentials, directs traffic to the right place, and prevents abuse. In Abyrith, Cloudflare Workers serve as the API gateway, running at the edge for low-latency responses worldwide.
 
 ### CI/CD (Continuous Integration / Continuous Deployment)
 Automated processes for testing code (CI) and deploying it to production (CD).
@@ -373,7 +373,7 @@ A query language for APIs that allows clients to request exactly the data they n
 Standard operations in REST APIs: GET (retrieve), POST (create), PUT (update), DELETE (remove), PATCH (partial update).
 
 ### Rate Limiting
-Restricting the number of API requests a user can make in a time period to prevent abuse and ensure fair usage.
+A throttling mechanism that restricts the number of API requests a user or application can make within a specific time period (e.g., 100 requests per minute). This prevents API abuse, protects against denial-of-service attacks, and ensures fair usage across all users. Think of it like a speed limit for API calls. In Abyrith, rate limiting is enforced at the API gateway layer (Cloudflare Workers) and provides helpful error messages when limits are exceeded.
 
 ### REST (Representational State Transfer)
 An architectural style for building APIs using standard HTTP methods and status codes.
@@ -637,6 +637,7 @@ When adding new technical terms to Abyrith documentation:
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
+| 1.1.0 | 2025-10-30 | Claude (via User Request) | Added 4 missing terms: API Gateway (enhanced), Envelope Encryption (enhanced), JWT (enhanced), Rate Limiting (enhanced). All definitions include beginner-friendly explanations and Abyrith-specific context. |
 | 1.0.0 | 2025-10-29 | Claude (via User Request) | Initial comprehensive glossary creation with all terms from core documentation |
 
 ---

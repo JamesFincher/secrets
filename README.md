@@ -1,3 +1,12 @@
+---
+Document: README
+Version: 1.0.0
+Last Updated: 2025-10-30
+Owner: Engineering Lead
+Status: Approved
+Dependencies: None
+---
+
 # Abyrith - AI-Native Secrets Management Platform
 
 **Status:** 📋 Planning & Documentation Phase (Pre-MVP)

@@ -403,13 +403,14 @@ Dependencies: [file1.md, file2.md, file3.md]
 - database schema secrets.md
 ```
 
-**Prefix by category when appropriate:**
+**No prefixes needed - folder structure provides context:**
 ```
-Architecture:  arch-security-model.md
-Database:      db-schema-secrets.md
-Feature:       feature-ai-assistant.md
-API:           api-rest-endpoints.md
-Operations:    ops-deployment-runbook.md
+✅ Good:
+03-security/security-model.md
+04-database/schemas/secrets-metadata.md
+08-features/ai-assistant/ai-assistant-overview.md
+05-api/api-rest-design.md
+10-operations/deployment/deployment-runbook.md
 ```
 
 **For folders, use numbered prefixes:**

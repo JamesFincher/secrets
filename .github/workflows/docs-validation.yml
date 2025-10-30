@@ -127,13 +127,24 @@ jobs:
               },
               {
                 "pattern": "^mailto:"
+              },
+              {
+                "pattern": "\\.(md|MD)$"
               }
             ],
             "replacementPatterns": [],
             "timeout": "20s",
             "retryOn429": true,
             "retryCount": 3,
-            "aliveStatusCodes": [200, 206, 301, 302, 303, 307, 308]
+            "aliveStatusCodes": [200, 206, 301, 302, 303, 307, 308],
+            "httpHeaders": [
+              {
+                "urls": ["https://developer.mozilla.org"],
+                "headers": {
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                }
+              }
+            ]
           }
           EOF
 

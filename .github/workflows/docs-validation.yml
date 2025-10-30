@@ -1,0 +1,219 @@
+name: Documentation Validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**.md'
+      - '.github/workflows/docs-validation.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '**.md'
+      - '.github/workflows/docs-validation.yml'
+
+jobs:
+  validate-docs:
+    runs-on: ubuntu-latest
+    name: Validate Documentation
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check Version Headers
+        run: |
+          echo "Checking for version headers in all markdown files..."
+          failed_files=""
+          for file in $(find . -name "*.md" -not -path "./.github/*" -not -path "./node_modules/*"); do
+            # Skip README.md and certain administrative files that don't need version headers
+            if [[ "$file" == "./README.md" || "$file" == "./LICENSE.md" ]]; then
+              continue
+            fi
+
+            # Check for version header components
+            if ! head -20 "$file" | grep -q "^Document:"; then
+              echo "❌ Missing version header in: $file"
+              failed_files="$failed_files$file\n"
+            else
+              echo "✅ Version header found in: $file"
+            fi
+          done
+
+          if [ -n "$failed_files" ]; then
+            echo -e "\n❌ Files missing version headers:\n$failed_files"
+            exit 1
+          else
+            echo -e "\n✅ All files have version headers"
+          fi
+
+      - name: Check File Naming Convention
+        run: |
+          echo "Checking file naming conventions..."
+          invalid_files=""
+
+          # Check for spaces in filenames
+          for file in $(find . -name "* *" -type f); do
+            echo "❌ File contains spaces: $file"
+            invalid_files="$invalid_files$file\n"
+          done
+
+          # Check for parentheses in filenames
+          for file in $(find . -name "*(*)*" -type f); do
+            echo "❌ File contains parentheses: $file"
+            invalid_files="$invalid_files$file\n"
+          done
+
+          # Check that .md files use kebab-case (allowing README, CHANGELOG, etc in caps)
+          for file in $(find . -name "*.md" -not -path "./.github/*" -not -path "./node_modules/*"); do
+            basename=$(basename "$file")
+            # Skip all-caps files like README.md, CHANGELOG.md, etc.
+            if [[ "$basename" =~ ^[A-Z\-]+\.md$ ]]; then
+              continue
+            fi
+            # Check for kebab-case
+            if ! [[ "$basename" =~ ^[a-z0-9\-]+\.md$ ]]; then
+              echo "❌ File not in kebab-case: $file"
+              invalid_files="$invalid_files$file\n"
+            fi
+          done
+
+          if [ -n "$invalid_files" ]; then
+            echo -e "\n❌ Files with invalid naming:\n$invalid_files"
+            exit 1
+          else
+            echo -e "\n✅ All files follow naming conventions"
+          fi
+
+      - name: Install markdown-link-check
+        run: npm install -g markdown-link-check
+
+      - name: Check for Broken Links
+        run: |
+          echo "Checking for broken links in markdown files..."
+
+          # Create config for markdown-link-check to ignore certain patterns
+          cat > .markdown-link-check-config.json << 'EOF'
+          {
+            "ignorePatterns": [
+              {
+                "pattern": "^#"
+              },
+              {
+                "pattern": "^mailto:"
+              }
+            ],
+            "replacementPatterns": [],
+            "timeout": "20s",
+            "retryOn429": true,
+            "retryCount": 3,
+            "aliveStatusCodes": [200, 206, 301, 302, 303, 307, 308]
+          }
+          EOF
+
+          failed=false
+          for file in $(find . -name "*.md" -not -path "./node_modules/*"); do
+            echo "Checking: $file"
+            if ! markdown-link-check --quiet --config .markdown-link-check-config.json "$file"; then
+              echo "❌ Broken links found in: $file"
+              failed=true
+            else
+              echo "✅ Links valid in: $file"
+            fi
+          done
+
+          if [ "$failed" = true ]; then
+            echo -e "\n❌ Some files have broken links"
+            exit 1
+          else
+            echo -e "\n✅ All links are valid"
+          fi
+
+      - name: Check CHANGELOG.md Updates
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "Checking if CHANGELOG.md has been updated..."
+
+          # Get the list of changed files
+          changed_files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+
+          # Check if any .md files were changed (excluding CHANGELOG.md itself)
+          md_changed=false
+          for file in $changed_files; do
+            if [[ "$file" == *.md ]] && [[ "$file" != "CHANGELOG.md" ]]; then
+              md_changed=true
+              break
+            fi
+          done
+
+          # If .md files were changed, check if CHANGELOG.md was also updated
+          if [ "$md_changed" = true ]; then
+            if echo "$changed_files" | grep -q "CHANGELOG.md"; then
+              echo "✅ CHANGELOG.md has been updated"
+            else
+              echo "⚠️ Warning: Documentation changed but CHANGELOG.md not updated"
+              echo "Please update CHANGELOG.md with your changes"
+              # Not failing the check, just warning
+            fi
+          else
+            echo "ℹ️ No documentation files changed, CHANGELOG.md update not required"
+          fi
+
+      - name: Validate Markdown Syntax
+        run: |
+          echo "Installing markdownlint-cli..."
+          npm install -g markdownlint-cli
+
+          # Create markdownlint config
+          cat > .markdownlint.yml << 'EOF'
+          # Markdownlint configuration
+          default: true
+
+          # Allow inline HTML
+          MD033: false
+
+          # Allow long lines (we use word wrap in editors)
+          MD013: false
+
+          # Allow multiple consecutive blank lines (for readability)
+          MD012: false
+
+          # Allow headers to increment by more than 1 (for document structure)
+          MD001: false
+
+          # Allow trailing punctuation in headers (for questions)
+          MD026: false
+
+          # Allow code blocks without language specified
+          MD040: false
+
+          # Allow first line to not be a top-level header (for version headers)
+          MD041: false
+          EOF
+
+          echo "Validating markdown syntax..."
+          if markdownlint '**/*.md' --ignore 'node_modules/**'; then
+            echo "✅ Markdown syntax is valid"
+          else
+            echo "❌ Markdown syntax errors found"
+            exit 1
+          fi
+
+      - name: Summary Report
+        if: always()
+        run: |
+          echo "## Documentation Validation Summary"
+          echo ""
+          echo "| Check | Status |"
+          echo "|-------|--------|"
+          echo "| Version Headers | $([[ "${{ steps.version-headers.outcome }}" == "success" ]] && echo "✅ Pass" || echo "❌ Fail") |"
+          echo "| File Naming | $([[ "${{ steps.file-naming.outcome }}" == "success" ]] && echo "✅ Pass" || echo "❌ Fail") |"
+          echo "| Link Validation | $([[ "${{ steps.link-check.outcome }}" == "success" ]] && echo "✅ Pass" || echo "❌ Fail") |"
+          echo "| Markdown Syntax | $([[ "${{ steps.markdown-lint.outcome }}" == "success" ]] && echo "✅ Pass" || echo "❌ Fail") |"
+          echo ""
+          echo "See individual check outputs above for details."

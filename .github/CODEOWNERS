@@ -1,0 +1,52 @@
+# GitHub CODEOWNERS for Abyrith Documentation Repository
+# Automatically assigns reviewers based on file paths
+# Reference: 00-admin/review-process.md
+
+# Admin and process docs - Engineering Lead owns process and standards
+/00-admin/                    @JamesFincher
+
+# Product and strategy - Product Lead owns vision and strategy
+/01-product/                  @JamesFincher
+
+# Architecture - Engineering Lead owns system design
+/02-architecture/             @JamesFincher
+
+# Security (requires security review) - Security Lead + Engineering Lead
+/03-security/                 @JamesFincher
+
+# Backend and data - Backend Team Lead
+/04-database/                 @JamesFincher
+/05-api/                      @JamesFincher
+/06-backend/                  @JamesFincher
+
+# Frontend - Frontend Team Lead
+/07-frontend/                 @JamesFincher
+
+# Features (shared ownership) - Product Lead + Engineering Lead
+/08-features/                 @JamesFincher
+
+# Integrations - Integration Team Lead
+/09-integrations/             @JamesFincher
+
+# Operations - DevOps Lead + Engineering Lead
+/10-operations/               @JamesFincher
+
+# Development - Engineering Lead owns dev process
+/11-development/              @JamesFincher
+
+# User documentation - Product Lead + Technical Writer
+/12-user-docs/                @JamesFincher
+
+# Root-level critical docs - Engineering Lead
+/CONTRIBUTING.md              @JamesFincher
+/GLOSSARY.md                  @JamesFincher
+/TECH-STACK.md                @JamesFincher
+/DOCUMENTATION-ROADMAP.md     @JamesFincher
+/FOLDER-STRUCTURE.md          @JamesFincher
+/CHANGELOG.md                 @JamesFincher
+/README.md                    @JamesFincher
+/ROADMAP.md                   @JamesFincher
+/CLAUDE.md                    @JamesFincher
+
+# GitHub configuration - Engineering Lead
+/.github/                     @JamesFincher

@@ -824,3 +824,4 @@ When this repo is ready and you're building the actual Abyrith platform:
 
 🚀 **Use parallel agents aggressively. Documentation creation is highly parallelizable!**
 - whenever you want to ask the user something, ask the project manager and follow thier instruction. don't bug the human.
+- follow the repo managers direction, they are project manager

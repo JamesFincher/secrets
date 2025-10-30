@@ -31,8 +31,29 @@ jobs:
           echo "Checking for version headers in all markdown files..."
           failed_files=""
           for file in $(find . -name "*.md" -not -path "./.github/*" -not -path "./node_modules/*"); do
-            # Skip README.md and certain administrative files that don't need version headers
-            if [[ "$file" == "./README.md" || "$file" == "./LICENSE.md" ]]; then
+            # Skip files that don't need version headers
+            skip=false
+
+            # Root-level administrative and meta files
+            if [[ "$file" == "./README.md" || "$file" == "./LICENSE.md" || "$file" == "./CHANGELOG.md" ||
+                  "$file" == "./QUICK-START.md" || "$file" == "./CLAUDE.md" || "$file" == "./TECH-STACK.md" ||
+                  "$file" == "./FOLDER-STRUCTURE.md" || "$file" == "./DOCUMENTATION-ROADMAP.md" ||
+                  "$file" == "./PHASE-STATUS-REPORT.md" || "$file" == "./DOC-ALIGNMENT-CHECKLIST.md" ]]; then
+              skip=true
+            fi
+
+            # Claude agent configuration files
+            if [[ "$file" == ./.claude/agents/* ]]; then
+              skip=true
+            fi
+
+            # High-level product and architecture overview docs (strategic, not versioned specs)
+            if [[ "$file" == "./01-product/"* || "$file" == "./02-architecture/system-overview.md" ]]; then
+              skip=true
+            fi
+
+            if [ "$skip" = true ]; then
+              echo "⏭️  Skipping (no version header required): $file"
               continue
             fi
 

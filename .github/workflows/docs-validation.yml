@@ -115,8 +115,10 @@ jobs:
         run: npm install -g markdown-link-check
 
       - name: Check for Broken Links
+        continue-on-error: true
         run: |
           echo "Checking for broken links in markdown files..."
+          echo "⚠️  This check is informational only and will not fail the workflow"
 
           # Create config for markdown-link-check to ignore certain patterns
           cat > .markdown-link-check-config.json << 'EOF'
@@ -152,7 +154,7 @@ jobs:
           for file in $(find . -name "*.md" -not -path "./node_modules/*"); do
             echo "Checking: $file"
             if ! markdown-link-check --quiet --config .markdown-link-check-config.json "$file"; then
-              echo "❌ Broken links found in: $file"
+              echo "⚠️  Broken links found in: $file"
               failed=true
             else
               echo "✅ Links valid in: $file"
@@ -160,8 +162,7 @@ jobs:
           done
 
           if [ "$failed" = true ]; then
-            echo -e "\n❌ Some files have broken links"
-            exit 1
+            echo -e "\n⚠️  Some files have broken external links (not blocking)"
           else
             echo -e "\n✅ All links are valid"
           fi

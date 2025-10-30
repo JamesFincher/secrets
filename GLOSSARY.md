@@ -137,6 +137,9 @@ A database security feature that restricts which rows a user can access in a tab
 ### SAML (Security Assertion Markup Language)
 A standard for enterprise single sign-on (SSO). Allows employees to use their corporate credentials to access Abyrith.
 
+### SCIM (System for Cross-domain Identity Management)
+A standard protocol for automating user provisioning and deprovisioning in enterprise systems. Enables automatic user account creation/deletion in Abyrith when employees join/leave an organization.
+
 ### SOC 2 (Service Organization Control 2)
 A compliance framework for service providers storing customer data. Demonstrates security, availability, and confidentiality controls.
 

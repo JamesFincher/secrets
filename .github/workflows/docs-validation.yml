@@ -93,8 +93,8 @@ jobs:
           # Check that .md files use kebab-case (allowing README, CHANGELOG, etc in caps)
           for file in $(find . -name "*.md" -not -path "./.github/*" -not -path "./node_modules/*"); do
             basename=$(basename "$file")
-            # Skip all-caps files like README.md, CHANGELOG.md, etc.
-            if [[ "$basename" =~ ^[A-Z\-]+\.md$ ]]; then
+            # Skip all-caps files like README.md, CHANGELOG.md, PHASE-0-COMPLETION-AUDIT.md, etc.
+            if [[ "$basename" =~ ^[A-Z0-9\-]+\.md$ ]]; then
               continue
             fi
             # Check for kebab-case

@@ -227,6 +227,9 @@ jobs:
 
           # Allow first line to not be a top-level header (for version headers)
           MD041: false
+
+          # Allow link fragments (anchor links may be valid even if not detected)
+          MD051: false
           EOF
 
           echo "Validating markdown syntax..."

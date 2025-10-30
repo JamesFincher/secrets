@@ -25,6 +25,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Issue templates for documentation management (.github/ISSUE_TEMPLATE/)
   - GitHub Actions workflow for documentation validation (.github/workflows/docs-validation.yml)
   - Repository setup compliance report (GITHUB-SETUP-REPORT.md)
+- Phase 1 security documentation (Authentication & Threat Modeling):
+  - Authentication flow architecture with dual-password system (03-security/auth/authentication-flow.md)
+  - OAuth provider integration guide covering Google and GitHub OAuth setup, configuration, implementation, error handling, and security considerations while maintaining zero-knowledge architecture (03-security/auth/oauth-setup.md)
+  - Password reset architecture defining account password reset, master password implications, recovery key mechanism, and secret re-encryption flows while maintaining zero-knowledge guarantees (03-security/auth/password-reset.md)
+  - Comprehensive threat model with 7 threat categories, attack scenarios, and risk assessment (03-security/threat-model.md)
+  - Detailed encryption specification with AES-256-GCM, PBKDF2, and Web Crypto API implementation (03-security/encryption-specification.md)
+  - Zero-knowledge security model architecture with complete cryptographic specifications, data flows, threat analysis, and security controls (03-security/security-model.md)
+  - Zero-knowledge architecture design explaining client-server trust boundaries, master password handling, server limitations, recovery mechanisms, and "5-year-old simple" explanations (03-security/zero-knowledge-architecture.md)
+  - Row-Level Security (RLS) policies for PostgreSQL with complete policy definitions for all tables (organizations, projects, environments, secrets, audit_logs), multi-tenancy enforcement, performance optimization strategies, testing procedures, and debugging guides (03-security/rbac/rls-policies.md)
+  - Permissions model architecture defining role-based access control with 4 roles (Owner, Admin, Developer, Read-Only), granular permissions, inheritance model, API and database enforcement, permission evaluation logic, and comprehensive security controls (03-security/rbac/permissions-model.md)
+  - Session management architecture specifying JWT token lifecycle (1 hour access, 30 day refresh), automatic token refresh strategy (15 minutes before expiration), token storage (sessionStorage + httpOnly cookies), master key lifecycle in memory and encrypted IndexedDB backup, concurrent session handling, logout propagation, inactivity timeout, and security controls for XSS/CSRF protection (03-security/auth/session-management.md)
+  - Multi-factor authentication (MFA) implementation with TOTP support (Google Authenticator, Authy, 1Password compatible), QR code enrollment flow, backup code generation and redemption with bcrypt hashing, organization-wide MFA enforcement policies with grace periods, recovery mechanisms for lost devices, and complete integration with Supabase Auth MFA capabilities (03-security/auth/mfa-implementation.md)
+  - Role definitions architecture specifying 4 standard roles (Owner, Admin, Developer, Read-Only) with complete capability descriptions, permission mappings, role hierarchy, assignment rules at organization and project levels, role change workflows, and future custom role architecture for enterprise (03-security/rbac/role-definitions.md)
 
 ### Changed
 - Reorganized existing documents into proper folder structure:

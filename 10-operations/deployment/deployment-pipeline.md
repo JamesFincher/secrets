@@ -437,10 +437,14 @@ jobs:
 
       - name: Update Worker secrets
         run: |
+          # ZERO-KNOWLEDGE ARCHITECTURE NOTE:
+          # User master encryption keys are derived from passwords using PBKDF2
+          # and exist ONLY in the user's browser. The server has NO access to
+          # master keys and CANNOT decrypt user secrets.
           echo "${{ secrets.STAGING_SUPABASE_URL }}" | wrangler secret put SUPABASE_URL
           echo "${{ secrets.STAGING_SUPABASE_ANON_KEY }}" | wrangler secret put SUPABASE_ANON_KEY
-          echo "${{ secrets.STAGING_MASTER_KEY }}" | wrangler secret put MASTER_ENCRYPTION_KEY
           echo "${{ secrets.STAGING_CLAUDE_API_KEY }}" | wrangler secret put CLAUDE_API_KEY
+          echo "${{ secrets.STAGING_FIRECRAWL_API_KEY }}" | wrangler secret put FIRECRAWL_API_KEY
 
       - name: Run E2E smoke tests
         run: pnpm test:e2e:smoke
@@ -563,10 +567,14 @@ jobs:
 
       - name: Update Worker secrets
         run: |
+          # ZERO-KNOWLEDGE ARCHITECTURE NOTE:
+          # User master encryption keys are derived from passwords using PBKDF2
+          # and exist ONLY in the user's browser. The server has NO access to
+          # master keys and CANNOT decrypt user secrets.
           echo "${{ secrets.PROD_SUPABASE_URL }}" | wrangler secret put SUPABASE_URL --env production
           echo "${{ secrets.PROD_SUPABASE_ANON_KEY }}" | wrangler secret put SUPABASE_ANON_KEY --env production
-          echo "${{ secrets.PROD_MASTER_KEY }}" | wrangler secret put MASTER_ENCRYPTION_KEY --env production
           echo "${{ secrets.PROD_CLAUDE_API_KEY }}" | wrangler secret put CLAUDE_API_KEY --env production
+          echo "${{ secrets.PROD_FIRECRAWL_API_KEY }}" | wrangler secret put FIRECRAWL_API_KEY --env production
 
       - name: Run E2E smoke tests
         run: pnpm test:e2e:smoke
@@ -649,9 +657,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<local-anon-key>
 
 # Private variables (never committed)
 SUPABASE_SERVICE_ROLE_KEY=<local-service-key>
-MASTER_ENCRYPTION_KEY=<dev-master-key>
 CLAUDE_API_KEY=<dev-claude-key>
 FIRECRAWL_API_KEY=<dev-firecrawl-key>
+
+# NOTE: NO MASTER_ENCRYPTION_KEY - User master keys are derived from
+# passwords using PBKDF2 in the browser and never leave the client
 ```
 
 **Staging (GitHub Secrets + Cloudflare):**
@@ -660,15 +670,17 @@ FIRECRAWL_API_KEY=<dev-firecrawl-key>
 STAGING_SUPABASE_URL=https://xyz-staging.supabase.co
 STAGING_SUPABASE_ANON_KEY=<staging-anon-key>
 STAGING_SUPABASE_SERVICE_KEY=<staging-service-key>
-STAGING_MASTER_KEY=<staging-master-encryption-key>
 STAGING_CLAUDE_API_KEY=<staging-claude-api-key>
 STAGING_FIRECRAWL_API_KEY=<staging-firecrawl-key>
 
 # Stored in Cloudflare Workers Secrets (via wrangler)
 SUPABASE_URL=<from-github-secrets>
 SUPABASE_ANON_KEY=<from-github-secrets>
-MASTER_ENCRYPTION_KEY=<from-github-secrets>
 CLAUDE_API_KEY=<from-github-secrets>
+FIRECRAWL_API_KEY=<from-github-secrets>
+
+# NOTE: NO MASTER_ENCRYPTION_KEY - Zero-knowledge architecture means
+# user master keys never leave the browser
 ```
 
 **Production (GitHub Secrets + Cloudflare):**
@@ -677,15 +689,17 @@ CLAUDE_API_KEY=<from-github-secrets>
 PROD_SUPABASE_URL=https://xyz-production.supabase.co
 PROD_SUPABASE_ANON_KEY=<prod-anon-key>
 PROD_SUPABASE_SERVICE_KEY=<prod-service-key>
-PROD_MASTER_KEY=<prod-master-encryption-key>
 PROD_CLAUDE_API_KEY=<prod-claude-api-key>
 PROD_FIRECRAWL_API_KEY=<prod-firecrawl-key>
 
 # Stored in Cloudflare Workers Secrets
 SUPABASE_URL=<from-github-secrets>
 SUPABASE_ANON_KEY=<from-github-secrets>
-MASTER_ENCRYPTION_KEY=<from-github-secrets>
 CLAUDE_API_KEY=<from-github-secrets>
+FIRECRAWL_API_KEY=<from-github-secrets>
+
+# NOTE: NO MASTER_ENCRYPTION_KEY - Zero-knowledge architecture means
+# user master keys never leave the browser
 ```
 
 ### Managing Secrets

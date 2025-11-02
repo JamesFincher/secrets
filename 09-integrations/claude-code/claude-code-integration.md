@@ -174,11 +174,12 @@ The Claude Code integration is a **key differentiator** for Abyrith, enabling se
 8. **Fetch encrypted secret:**
    - MCP server calls `GET /api/v1/secrets/OPENAI_API_KEY`
    - API returns encrypted blob (AES-256-GCM ciphertext)
-9. **Decrypt secret:**
-   - MCP server requests decryption from web app (if browser open) OR
-   - MCP server prompts user for master password in system dialog
-   - Decryption happens client-side using Web Crypto API
-   - Plaintext secret held in memory only
+9. **MCP server requests browser decryption (ZERO-KNOWLEDGE):**
+   - **⚠️ CRITICAL: Decryption ONLY happens in browser, NEVER in MCP server**
+   - MCP server sends encrypted blob to browser via WebSocket
+   - Browser decrypts using master key (Web Crypto API)
+   - Browser returns plaintext to MCP server (time-limited, max 5 min)
+   - MCP server holds plaintext in memory temporarily
 10. **Return to Claude Code:**
     - MCP server returns: `{ name: "OPENAI_API_KEY", value: "sk-proj-abc123..." }`
     - Claude Code uses secret in code generation
@@ -247,12 +248,17 @@ The Claude Code integration is a **key differentiator** for Abyrith, enabling se
    - MCP server automatically refreshes access token when expired
    - If refresh fails, user prompted to re-authenticate
 
-4. **Master Key for Decryption:**
-   - User's master password NEVER transmitted to MCP server or API
-   - Two decryption options:
-     - **Option A (preferred):** Browser open → MCP server requests decryption from web app via WebSocket
-     - **Option B:** Browser closed → System password dialog prompts user for master password
-   - Decryption happens in secure memory, master key zeroed after use
+4. **Master Key for Decryption (ZERO-KNOWLEDGE ARCHITECTURE):**
+   - **⚠️ CRITICAL: Master key NEVER leaves browser, NEVER transmitted**
+   - **Browser-Mediated Decryption (ONLY supported method):**
+     - User must have Abyrith web app open in browser
+     - Browser has master key in memory (user logged in/unlocked)
+     - MCP server sends encrypted blob to browser via WebSocket
+     - Browser decrypts using Web Crypto API with master key
+     - Browser returns plaintext to MCP server (time-limited, max 5 min)
+     - MCP server holds plaintext in memory only, cleared after use
+   - **NO server-side decryption** - violates zero-knowledge architecture
+   - **NO password prompts in MCP server** - master password never leaves browser
 
 ### Credentials Management
 
@@ -1593,6 +1599,22 @@ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"abyrith_se
 
 ## Security Considerations
 
+### ⚠️ Zero-Knowledge Architecture
+
+**CRITICAL: This integration maintains zero-knowledge security.**
+
+All secret decryption happens in the user's browser, never on any server (including the MCP server). This ensures:
+
+1. **Master key never transmitted** - Stays in browser memory only
+2. **No server-side decryption** - MCP server never has access to plaintext
+3. **Browser-mediated flow** - MCP server requests browser to decrypt
+4. **Time-limited plaintext** - MCP holds plaintext max 5 minutes, cleared after use
+5. **Compliance maintained** - SOC 2, ISO 27001, GDPR requirements met
+
+**Browser must be open:** User must have Abyrith web app open for Claude Code integration to work. If browser is closed, MCP requests fail with: "Browser required for decryption. Please open https://app.abyrith.com and ensure you're logged in."
+
+**Any implementation that allows server-side decryption violates this architecture and is NOT acceptable.**
+
 ### Data Privacy
 
 **Data sent from Claude Code to MCP server:**
@@ -1616,8 +1638,9 @@ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"abyrith_se
 **Data stored by MCP server:**
 - JWT in OS keychain (encrypted at rest)
 - Approval cache (status + expiration, no secrets)
-- Master key in memory only (never persisted)
+- **NO master key** - never in MCP server, only in browser
 - **NO secret values persisted to disk**
+- **Decrypted plaintext in memory only** (max 5 min, cleared after use)
 
 ### Credential Security
 
@@ -1776,7 +1799,46 @@ npm install -g @abyrith/mcp-server
 
 ---
 
-### Issue 2: "Authentication expired" every few hours
+### Issue 2: "Browser required for decryption"
+
+**Symptoms:**
+```
+Error: Browser required for decryption. Please open https://app.abyrith.com and ensure you're logged in.
+```
+
+**Cause:** Abyrith web app not open or user not logged in
+
+**Solution:**
+
+1. **Open Abyrith web app:**
+   - Navigate to https://app.abyrith.com
+   - Log in if not already authenticated
+   - Keep browser tab open while using Claude Code
+
+2. **Verify browser connection:**
+   - Check browser console for WebSocket connection errors
+   - Ensure no firewall blocking WebSocket on port 8765
+   - Verify you're logged into the correct Abyrith account
+
+3. **Check master key is unlocked:**
+   - If you recently logged in, master key should be in memory
+   - If session expired, you may need to re-enter password in browser
+   - Browser should show "Logged in" status in Abyrith app
+
+4. **Keep browser open during Claude Code use:**
+   - Pin the Abyrith tab to prevent accidental closure
+   - Browser must remain open for MCP to work
+   - No background process alternative (security requirement)
+
+**Why this is required:**
+- Zero-knowledge architecture: Master key only exists in browser
+- No server-side decryption allowed for security compliance
+- Browser performs all decryption using Web Crypto API
+- MCP server only coordinates decryption, never performs it
+
+---
+
+### Issue 3: "Authentication expired" every few hours
 
 **Symptoms:**
 ```

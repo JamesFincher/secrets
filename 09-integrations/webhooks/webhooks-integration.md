@@ -1,6 +1,6 @@
 ---
 Document: Webhooks System - Integration Guide
-Version: 1.0.0
+Version: 1.1.0
 Last Updated: 2025-10-30
 Owner: Backend Team
 Status: Draft
@@ -206,7 +206,44 @@ POST /api/webhooks
   "name": "Slack Security Alerts"
 }
 
-// Response
+// Backend endpoint implementation (with SSRF protection)
+async function createWebhookSubscription(request: Request) {
+  const { url, events, name } = await request.json();
+
+  // SSRF Protection: Validate webhook URL before registration
+  const validation = await validateWebhookURL(url);
+  if (!validation.valid) {
+    return new Response(
+      JSON.stringify({ error: validation.error }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Generate webhook secret
+  const secret = generateWebhookSecret();
+
+  // Store webhook subscription (existing code)
+  const subscription = await storeWebhookSubscription({
+    url,
+    events,
+    name,
+    secret
+  });
+
+  return new Response(
+    JSON.stringify({
+      id: subscription.id,
+      url: subscription.url,
+      secret: secret, // Shown once!
+      events: subscription.events,
+      active: true,
+      created_at: subscription.created_at
+    }),
+    { status: 201, headers: { 'Content-Type': 'application/json' } }
+  );
+}
+
+// Response (success case)
 {
   "id": "webhook_uuid",
   "url": "https://hooks.slack.com/...",
@@ -214,6 +251,11 @@ POST /api/webhooks
   "events": ["secret.accessed", "secret.created", "member.added"],
   "active": true,
   "created_at": "2025-10-30T12:00:00Z"
+}
+
+// Response (SSRF blocked)
+{
+  "error": "Cannot deliver webhooks to private IP addresses"
 }
 ```
 
@@ -617,6 +659,85 @@ For Slack webhook URLs, Abyrith can optionally format payloads as Slack Block Ki
 **Implementation:**
 
 ```typescript
+/**
+ * SSRF Protection: Validate webhook URLs before registration and delivery
+ * Prevents webhooks targeting private IPs, localhost, cloud metadata endpoints
+ */
+function isPrivateIP(ip: string): boolean {
+  const parts = ip.split('.').map(Number);
+
+  // Check for invalid IP format
+  if (parts.length !== 4 || parts.some(isNaN)) {
+    return false;
+  }
+
+  return (
+    parts[0] === 10 ||                                    // 10.0.0.0/8
+    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) || // 172.16.0.0/12
+    (parts[0] === 192 && parts[1] === 168) ||             // 192.168.0.0/16
+    parts[0] === 127 ||                                   // 127.0.0.0/8 (localhost)
+    (parts[0] === 169 && parts[1] === 254)                // 169.254.0.0/16 (link-local/cloud metadata)
+  );
+}
+
+async function validateWebhookURL(url: string): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const parsedURL = new URL(url);
+
+    // Only allow HTTP/HTTPS protocols
+    if (!['http:', 'https:'].includes(parsedURL.protocol)) {
+      return { valid: false, error: 'Only HTTP/HTTPS protocols allowed' };
+    }
+
+    // Require HTTPS for production webhooks (HTTP allowed only for localhost testing)
+    if (parsedURL.protocol === 'http:' && parsedURL.hostname !== 'localhost') {
+      return { valid: false, error: 'HTTPS required for non-localhost webhooks' };
+    }
+
+    // Block localhost in production (allow in development for testing)
+    const hostname = parsedURL.hostname;
+    if (['localhost', '127.0.0.1', '::1'].includes(hostname.toLowerCase())) {
+      if (process.env.NODE_ENV === 'production') {
+        return { valid: false, error: 'Localhost webhooks not allowed in production' };
+      }
+    }
+
+    // Check if hostname is an IP address
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (ipRegex.test(hostname)) {
+      if (isPrivateIP(hostname)) {
+        return { valid: false, error: 'Cannot deliver webhooks to private IP addresses' };
+      }
+    }
+
+    // DNS resolution check (prevent DNS rebinding attacks)
+    // Uses Cloudflare DNS-over-HTTPS for reliable public DNS resolution
+    try {
+      const dnsResult = await fetch(`https://1.1.1.1/dns-query?name=${hostname}&type=A`, {
+        headers: { 'Accept': 'application/dns-json' }
+      });
+      const dnsData = await dnsResult.json();
+
+      if (dnsData.Answer) {
+        for (const record of dnsData.Answer) {
+          if (record.type === 1) { // A record (IPv4)
+            if (isPrivateIP(record.data)) {
+              return { valid: false, error: 'Webhook URL resolves to private IP address' };
+            }
+          }
+        }
+      }
+    } catch (dnsError) {
+      // DNS resolution failed - reject for safety
+      return { valid: false, error: 'Unable to resolve webhook domain' };
+    }
+
+    return { valid: true };
+  } catch (error) {
+    return { valid: false, error: 'Invalid URL format' };
+  }
+}
+
 // Webhook dispatcher worker
 interface WebhookDispatcherEnv {
   SUPABASE_URL: string;
@@ -644,6 +765,17 @@ export default {
 
     if (!subscription || !subscription.active) {
       return new Response('Webhook subscription not found or inactive', { status: 404 });
+    }
+
+    // SSRF Protection: Re-validate URL before delivery (defense in depth)
+    const validation = await validateWebhookURL(subscription.url);
+    if (!validation.valid) {
+      console.error(`Webhook URL no longer valid: ${subscription.url} - ${validation.error}`);
+
+      // Auto-disable malicious webhook subscription
+      await disableWebhook(subscription.id, env);
+
+      return new Response(`Webhook URL validation failed: ${validation.error}`, { status: 400 });
     }
 
     // Check rate limit
@@ -798,6 +930,24 @@ async function scheduleRetry(
       scheduled_for: Date.now() + delay
     })
   });
+}
+
+async function disableWebhook(
+  subscriptionId: string,
+  env: WebhookDispatcherEnv
+): Promise<void> {
+  await fetch(
+    `${env.SUPABASE_URL}/rest/v1/webhook_subscriptions?id=eq.${subscriptionId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'apikey': env.SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ active: false })
+    }
+  );
 }
 ```
 
@@ -1286,13 +1436,104 @@ echo -n '{"type":"secret.accessed",...}' | openssl dgst -sha256 -hmac 'YOUR_WEBH
   - Monitor for unusual webhook patterns from external sources
 - **Status:** Partially mitigated (secret rotation is manual)
 
-**Threat 4: Webhook Endpoint as Attack Vector**
-- **Scenario:** Malicious user creates webhook pointing to internal services (SSRF)
+**Threat 4: Server-Side Request Forgery (SSRF) via Webhook Endpoints**
+- **Scenario:** Malicious user creates webhook pointing to internal services or cloud metadata endpoints
+- **Attack Examples:**
+  - Targeting internal admin panels: `http://192.168.1.100:8080/admin/reset-password`
+  - Exfiltrating cloud credentials: `http://169.254.169.254/latest/user-data`
+  - Port scanning internal network: `http://10.0.0.5:22/`
+  - DNS rebinding: Domain initially resolves to public IP, then changes to private IP
 - **Mitigation:**
-  - Block private IP ranges (10.x.x.x, 192.168.x.x, localhost)
-  - Block cloud metadata endpoints (169.254.169.254)
-  - URL validation before saving subscription
-- **Status:** Mitigated
+  - **Protocol validation:** Only HTTP/HTTPS allowed, reject file://, ftp://, gopher://, etc.
+  - **HTTPS enforcement:** Require HTTPS for all non-localhost webhooks in production
+  - **Private IP blocking:** Reject 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8
+  - **Link-local blocking:** Reject 169.254.0.0/16 (cloud metadata endpoints)
+  - **Localhost blocking:** Reject localhost/127.0.0.1/::1 in production
+  - **DNS resolution validation:** Check DNS records to prevent private IP resolution
+  - **Defense in depth:** Re-validate URL at delivery time (prevents DNS rebinding)
+  - **Auto-disable malicious webhooks:** Automatically deactivate subscriptions that fail validation
+- **Implementation:** See `validateWebhookURL()` function in Integration Code section
+- **Status:** Fully Mitigated
+
+### SSRF Attack Prevention Examples
+
+**Example 1: Internal Service Exploitation (BLOCKED)**
+```
+Attempted URL: http://192.168.1.100:8080/admin/reset-password
+Validation Result: ❌ REJECTED
+Reason: "Cannot deliver webhooks to private IP addresses"
+Impact Prevented: Attacker cannot trigger internal admin actions via webhooks
+```
+
+**Example 2: Cloud Metadata Exfiltration (BLOCKED)**
+```
+Attempted URL: http://169.254.169.254/latest/user-data
+Validation Result: ❌ REJECTED
+Reason: "Cannot deliver webhooks to private IP addresses"
+Impact Prevented: Attacker cannot steal AWS/GCP/Azure credentials
+```
+
+**Example 3: Port Scanning via Webhooks (BLOCKED)**
+```
+Attempted URL: http://10.0.0.5:22/
+Validation Result: ❌ REJECTED
+Reason: "Cannot deliver webhooks to private IP addresses"
+Impact Prevented: Attacker cannot use webhook system to scan internal network
+```
+
+**Example 4: DNS Rebinding Attack (BLOCKED)**
+```
+Scenario:
+  1. Attacker registers domain: evil.attacker.com
+  2. DNS initially resolves to: 203.0.113.42 (public IP)
+  3. Webhook subscription created (validation passes)
+  4. Attacker changes DNS to: 192.168.1.1 (private IP)
+  5. Webhook delivery attempts to resolve domain
+  6. DNS now returns private IP
+
+Protection:
+  - URL re-validated at delivery time
+  - DNS resolution check detects private IP
+  - Webhook delivery rejected
+  - Subscription auto-disabled
+
+Result: ❌ REJECTED at delivery time
+Reason: "Webhook URL resolves to private IP address"
+Impact Prevented: Time-of-check-to-time-of-use vulnerability closed
+```
+
+**Example 5: Protocol Smuggling (BLOCKED)**
+```
+Attempted URL: file:///etc/passwd
+Validation Result: ❌ REJECTED
+Reason: "Only HTTP/HTTPS protocols allowed"
+
+Attempted URL: gopher://internal-service:9000/_POST%20/admin
+Validation Result: ❌ REJECTED
+Reason: "Only HTTP/HTTPS protocols allowed"
+
+Impact Prevented: Cannot use alternative protocols to bypass protections
+```
+
+**Example 6: Localhost in Production (BLOCKED)**
+```
+Attempted URL: http://localhost:8080/webhook
+Environment: production
+Validation Result: ❌ REJECTED
+Reason: "Localhost webhooks not allowed in production"
+
+Note: Same URL allowed in development for testing
+```
+
+**Example 7: HTTP instead of HTTPS (BLOCKED in Production)**
+```
+Attempted URL: http://example.com/webhook
+Environment: production
+Validation Result: ❌ REJECTED
+Reason: "HTTPS required for non-localhost webhooks"
+
+Impact Prevented: Man-in-the-middle attacks prevented, webhook integrity ensured
+```
 
 ---
 
@@ -1515,6 +1756,7 @@ curl -X PATCH https://api.abyrith.com/v1/webhooks/sub_123 \
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
+| 1.1.0 | 2025-10-30 | Backend Team | **SECURITY:** Added comprehensive SSRF protection with URL validation, private IP blocking, DNS rebinding prevention, and defense-in-depth re-validation at delivery time |
 | 1.0.0 | 2025-10-30 | Backend Team | Initial webhooks integration documentation |
 
 ---

@@ -133,9 +133,13 @@ The Cursor integration enables Cursor AI to access Abyrith secrets directly thro
 5. If no approval: Trigger approval request → Notify user in Abyrith web app
 6. User approves (one-time or time-limited)
 7. MCP server fetches encrypted secret from API
-8. MCP server decrypts secret client-side
-9. MCP server returns plaintext secret to Cursor AI (in memory only)
+8. **MCP server requests browser to decrypt secret:**
+   - MCP server sends encrypted blob to browser via WebSocket
+   - Browser decrypts using master key (Web Crypto API)
+   - Browser returns plaintext to MCP server (time-limited, max 5 min)
+9. MCP server returns plaintext secret to Cursor AI (held in memory temporarily)
 10. Cursor AI uses secret to generate code with proper Stripe integration
+11. MCP server clears plaintext from memory after use
 
 **User Approval Flow:**
 1. User receives browser notification: "Cursor AI requests STRIPE_API_KEY"
@@ -191,19 +195,25 @@ The Cursor integration enables Cursor AI to access Abyrith secrets directly thro
    - Cloudflare Worker validates JWT signature and expiration
    - Worker enforces RLS policies based on user ID in JWT
 
-3. **Master Key for Decryption:**
-   - User's master password never transmitted
-   - When decryption needed:
-     - Option A: MCP server requests decryption from open Abyrith web app (via WebSocket)
-     - Option B: MCP server prompts user for master password in terminal
-   - Decryption happens client-side only
+3. **Master Key for Decryption (ZERO-KNOWLEDGE ARCHITECTURE):**
+   - **⚠️ CRITICAL: Master key NEVER leaves browser, NEVER transmitted**
+   - **Browser-Mediated Decryption (ONLY supported method):**
+     - User must have Abyrith web app open in browser
+     - Browser has master key in memory (user logged in/unlocked)
+     - MCP server sends encrypted blob to browser via WebSocket
+     - Browser decrypts using Web Crypto API with master key
+     - Browser returns plaintext to MCP server (time-limited, max 5 min)
+     - MCP server holds plaintext in memory only, cleared after use
+   - **NO server-side decryption** - violates zero-knowledge architecture
+   - **NO password prompts in MCP server** - master password never leaves browser
 
 ### Credentials Management
 
 **Where credentials are stored:**
 - **Development:** OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service)
 - **JWT Storage:** Encrypted at rest using OS-level APIs
-- **Master Key:** Never persisted; held in memory only during active session
+- **Master Key:** ONLY in browser memory, NEVER in MCP server, NEVER persisted
+- **Decrypted Secrets:** In MCP server memory temporarily (max 5 min), cleared after use
 
 **Credential Format:**
 ```bash
@@ -887,6 +897,22 @@ Error: Secret 'DATABASE_URL' not found in project 'RecipeApp'
 
 ## Security Considerations
 
+### ⚠️ Zero-Knowledge Architecture
+
+**CRITICAL: This integration maintains zero-knowledge security.**
+
+All secret decryption happens in the user's browser, never on any server (including the MCP server). This ensures:
+
+1. **Master key never transmitted** - Stays in browser memory only
+2. **No server-side decryption** - MCP server never has access to plaintext
+3. **Browser-mediated flow** - MCP server requests browser to decrypt
+4. **Time-limited plaintext** - MCP holds plaintext max 5 minutes, cleared after use
+5. **Compliance maintained** - SOC 2, ISO 27001, GDPR requirements met
+
+**Browser must be open:** User must have Abyrith web app open for Cursor integration to work. If browser is closed, MCP requests fail with: "Browser required for decryption."
+
+**Any implementation that allows server-side decryption violates this architecture and is NOT acceptable.**
+
 ### Data Privacy
 
 **Data sent from Cursor to MCP server:**
@@ -905,7 +931,8 @@ Error: Secret 'DATABASE_URL' not found in project 'RecipeApp'
 **Data stored by MCP server:**
 - JWT in OS keychain (encrypted at rest)
 - Approval cache (status + expiration, no secret values)
-- Master key in memory only (never persisted)
+- **NO master key** - never in MCP server
+- **NO persisted plaintext** - memory only (max 5 min), cleared after use
 
 ### Cursor-Specific Security
 

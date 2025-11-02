@@ -108,10 +108,10 @@ The MCP Secrets Server is Abyrith's **key differentiator**, providing the first 
 │  │  • Handle timeouts                                   │   │
 │  └────────────────────┬─────────────────────────────────┘   │
 │  ┌──────────────────────────────────────────────────────┐   │
-│  │  Decryption Engine:                                  │   │
-│  │  • Request decryption from web app (if open) OR      │   │
-│  │  • Prompt user for master password                   │   │
-│  │  • Decrypt using Web Crypto API                      │   │
+│  │  Decryption Coordinator:                             │   │
+│  │  • Request decryption from browser via WebSocket     │   │
+│  │  • Receive plaintext from browser (time-limited)     │   │
+│  │  • Store in memory temporarily (max 5 minutes)       │   │
 │  └────────────────────┬─────────────────────────────────┘   │
 └────────────────────────┼─────────────────────────────────────┘
                        │
@@ -187,11 +187,13 @@ The MCP Secrets Server is Abyrith's **key differentiator**, providing the first 
    - GET `/api/secrets/{secret_id}`
    - Response: `{ encrypted_value, encrypted_dek, nonce, ... }`
 
-8. **MCP server decrypts secret:**
-   - **Option A:** If web app open, request decryption via WebSocket
-   - **Option B:** Prompt user for master password, decrypt locally
-   - Decryption happens client-side (MCP server or browser)
-   - Plaintext secret returned to AI tool (in memory only)
+8. **MCP server requests browser decryption:**
+   - **⚠️ CRITICAL: Decryption ONLY happens in browser, NEVER in MCP server**
+   - MCP server sends encrypted blob to browser via WebSocket
+   - Browser decrypts using master key (held in memory from user login)
+   - Browser returns plaintext to MCP server (time-limited, max 5 min)
+   - MCP server holds plaintext in memory temporarily
+   - Memory cleared immediately after returning to AI tool
 
 9. **MCP server returns to AI tool:**
    - Response: `{ name: "OPENAI_API_KEY", value: "sk-proj-...", expires_in: 3600 }`
@@ -254,25 +256,26 @@ The MCP Secrets Server is Abyrith's **key differentiator**, providing the first 
    - Worker checks user permissions for requested project/secret
    - JWT contains: `user_id`, `org_id`, `role`, `exp` (expiration)
 
-3. **Master Key for Decryption:**
-   - User's master password **never transmitted** to MCP server
-   - **Option A (Web App Open):**
-     - MCP server requests decryption from browser via WebSocket
-     - Browser has master key in memory (user already unlocked)
-     - Browser decrypts, returns plaintext to MCP server
-   - **Option B (CLI Workflow):**
-     - MCP server prompts: "Enter master password to decrypt secrets:"
-     - User enters password (input hidden)
-     - MCP server derives master key using PBKDF2
-     - MCP server decrypts secret
-     - Master key wiped from memory after decryption
+3. **Master Key for Decryption (ZERO-KNOWLEDGE ARCHITECTURE):**
+   - **⚠️ CRITICAL: Master key NEVER leaves browser, NEVER transmitted**
+   - **Browser-Mediated Decryption (ONLY supported option):**
+     - User must have Abyrith web app open in browser
+     - Browser has master key in memory (user logged in/unlocked)
+     - MCP server sends encrypted blob to browser via WebSocket
+     - Browser decrypts using Web Crypto API with master key
+     - Browser returns plaintext to MCP server (time-limited connection)
+     - MCP server holds plaintext in memory only (max 5 minutes)
+     - Plaintext cleared immediately after use
+   - **NO server-side decryption** - this would violate zero-knowledge architecture
+   - **NO password prompts in MCP server** - master password never leaves browser
 
 ### Credentials Management
 
 **Where credentials are stored:**
 - **Development:** Local keychain (OS-level encryption)
 - **JWT Storage:** `~/.abyrith/credentials.json` (encrypted using OS keychain)
-- **Master Key:** Never persisted; held in memory only during active decryption
+- **Master Key:** ONLY in browser memory, NEVER in MCP server, NEVER persisted
+- **Decrypted Secrets:** In MCP server memory temporarily (max 5 min), cleared after use
 
 **Credential Format:**
 ```json
@@ -372,7 +375,7 @@ ABYRITH_PROJECT_ID=uuid-here
 ABYRITH_APPROVAL_TIMEOUT=300        # Seconds to wait for approval (default: 300)
 ABYRITH_LOG_LEVEL=info              # Logging level: debug|info|warn|error
 ABYRITH_CACHE_TTL=3600              # Approval cache TTL in seconds (default: 3600)
-ABYRITH_DECRYPTION_METHOD=auto      # auto|browser|cli (default: auto)
+ABYRITH_BROWSER_WS_PORT=8765        # WebSocket port for browser connection (default: 8765)
 ```
 
 ### Configuration File
@@ -388,7 +391,7 @@ interface MCPConfig {
   approvalTimeout: number;     // seconds
   logLevel: 'debug' | 'info' | 'warn' | 'error';
   cacheTTL: number;            // seconds
-  decryptionMethod: 'auto' | 'browser' | 'cli';
+  browserWsPort: number;       // WebSocket port for browser communication (default: 8765)
   allowedTools?: string[];     // Restrict which tools are available
   notificationSound?: boolean; // Play sound on approval request
 }
@@ -403,7 +406,7 @@ interface MCPConfig {
   "approvalTimeout": 300,
   "logLevel": "info",
   "cacheTTL": 3600,
-  "decryptionMethod": "auto",
+  "browserWsPort": 8765,
   "allowedTools": [
     "mcp_secrets_list",
     "mcp_secrets_get",
@@ -702,6 +705,26 @@ console.log(result);
 
 ## Approval Flow
 
+### ⚠️ ZERO-KNOWLEDGE ARCHITECTURE REQUIREMENT
+
+**CRITICAL SECURITY PRINCIPLE: Server-side decryption is NEVER allowed.**
+
+This MCP integration maintains Abyrith's zero-knowledge architecture. This means:
+
+- **Master key NEVER leaves the user's browser**
+- **Decryption ONLY happens in browser** using Web Crypto API
+- **MCP server NEVER decrypts secrets** - it only coordinates with browser
+- **No password prompts in MCP server** - user must have browser open
+- **Plaintext secrets in MCP memory are temporary** (max 5 minutes, cleared after use)
+
+**Browser must be open:** User must have Abyrith web app open in their browser for MCP to work. The browser holds the master key in memory and performs all decryption operations.
+
+**If browser is closed:** MCP requests fail with error: "Browser required for decryption. Please open https://app.abyrith.com and ensure you're logged in."
+
+This is non-negotiable for security compliance (SOC 2, ISO 27001, GDPR).
+
+---
+
 ### Detailed Approval Process
 
 **Step-by-Step:**
@@ -847,50 +870,79 @@ console.log(result);
    }
    ```
 
-8. **MCP server decrypts secret:**
-   - **Option A (Browser decryption):**
-     ```typescript
-     // Send decryption request to browser via WebSocket
-     ws.send({
-       type: 'decrypt_request',
-       secret_id: 'secret_uuid',
-       encrypted_value: '...',
-       encrypted_dek: '...',
-       nonces: { secret: '...', dek: '...' }
-     });
+8. **MCP server requests browser decryption (ZERO-KNOWLEDGE ARCHITECTURE):**
+   - **⚠️ CRITICAL: Decryption ONLY happens in browser, NEVER in MCP server**
 
-     // Browser decrypts using master key in memory
-     const plaintext = await decryptSecret(encrypted, masterKey);
+   ```typescript
+   // MCP Server: Send decryption request to browser via WebSocket
+   const ws = await connectToBrowser(); // WebSocket to browser on port 8765
 
-     // Browser sends back plaintext via WebSocket
-     ws.send({
-       type: 'decrypt_response',
-       secret_id: 'secret_uuid',
-       plaintext: 'sk-proj-abc123...'
-     });
-     ```
+   ws.send({
+     type: 'decrypt_request',
+     request_id: 'uuid',
+     approval_token: approvalToken, // Verify this is approved
+     encrypted_value: encryptedSecret.encrypted_value,
+     encrypted_dek: encryptedSecret.encrypted_dek,
+     secret_nonce: encryptedSecret.secret_nonce,
+     dek_nonce: encryptedSecret.dek_nonce,
+     timeout: 300 // 5 minutes max
+   });
 
-   - **Option B (CLI decryption):**
-     ```typescript
-     // Prompt user for master password
-     const masterPassword = await promptSecure('Master password: ');
+   // Browser: Decrypt using master key (Web Crypto API)
+   // This code runs in browser, NOT in MCP server
+   async function handleDecryptRequest(request) {
+     // Verify user approval
+     const approved = await verifyApprovalToken(request.approval_token);
+     if (!approved) {
+       throw new Error('Approval required');
+     }
 
-     // Retrieve salt from API
-     const { salt } = await getUserEncryptionKey(userId);
+     // Get master key from browser memory (user already logged in)
+     const masterKey = await getMasterKeyFromMemory();
 
-     // Derive master key
-     const masterKey = await deriveMasterKey(masterPassword, salt);
+     // Decrypt DEK using master key
+     const dek = await crypto.subtle.decrypt(
+       { name: 'AES-GCM', iv: base64Decode(request.dek_nonce) },
+       masterKey,
+       base64Decode(request.encrypted_dek)
+     );
 
-     // Decrypt DEK
-     const dek = await decryptDEK(encryptedDEK, dekNonce, masterKey);
+     // Decrypt secret using DEK
+     const plaintext = await crypto.subtle.decrypt(
+       { name: 'AES-GCM', iv: base64Decode(request.secret_nonce) },
+       await importKey(dek),
+       base64Decode(request.encrypted_value)
+     );
 
-     // Decrypt secret
-     const plaintext = await decryptSecret(encryptedValue, secretNonce, dek);
+     // Return plaintext to MCP server (time-limited)
+     return new TextDecoder().decode(plaintext);
+   }
 
-     // Wipe keys from memory
-     masterKey = null;
-     dek = null;
-     ```
+   // Browser: Send decrypted plaintext back to MCP server
+   ws.send({
+     type: 'decrypt_response',
+     request_id: 'uuid',
+     plaintext: 'sk-proj-abc123...', // Decrypted secret
+     expires_in: 300 // MCP server must clear after 5 min
+   });
+
+   // MCP Server: Receive plaintext, hold in memory temporarily
+   const plaintext = await waitForDecryptionResponse(requestId, 300);
+
+   // MCP Server: Clear plaintext from memory after use
+   setTimeout(() => {
+     plaintext = null; // Clear after max 5 minutes
+   }, 300000);
+   ```
+
+   **Security Requirements:**
+   - Master key NEVER leaves browser
+   - Decryption ALWAYS happens in browser using Web Crypto API
+   - MCP server only handles encrypted blobs and temporary plaintext
+   - WebSocket connection authenticated with JWT
+   - Plaintext in MCP memory: max 5 minutes, cleared after use
+   - Browser must be open and user logged in
+   - If browser closed: MCP request fails with "Browser required for decryption"
 
 9. **MCP server caches approval:**
    ```typescript
@@ -1081,9 +1133,14 @@ export class AbyrithMCPServer {
         environment
       });
 
-      // Decrypt secret
-      const plaintext = await this.decryptionEngine.decrypt(encryptedSecret);
+      // Request decryption from browser (ZERO-KNOWLEDGE: decrypt client-side only)
+      const plaintext = await this.decryptionEngine.requestBrowserDecryption({
+        encryptedSecret,
+        approvalToken: approvedGrant.token,
+        timeout: 300 // 5 minutes max
+      });
 
+      // Plaintext held in memory temporarily, cleared after use
       return {
         name,
         value: plaintext,
@@ -1521,6 +1578,20 @@ abyrith-mcp test request STRIPE_API_KEY --context "Testing"
 
 ## Security Considerations
 
+### ⚠️ Zero-Knowledge Architecture
+
+**CRITICAL: This integration maintains zero-knowledge security.**
+
+All secret decryption happens in the user's browser, never on any server (including the MCP server). This ensures:
+
+1. **Master key never transmitted** - Stays in browser memory only
+2. **No server-side decryption** - Server never has access to plaintext
+3. **Browser-mediated flow** - MCP server requests browser to decrypt
+4. **Time-limited plaintext** - MCP holds plaintext max 5 minutes, cleared after use
+5. **Compliance maintained** - SOC 2, ISO 27001, GDPR requirements met
+
+**Any implementation that allows server-side decryption violates this architecture and is NOT acceptable.**
+
 ### Data Privacy
 
 **Data sent to MCP server:**
@@ -1528,16 +1599,24 @@ abyrith-mcp test request STRIPE_API_KEY --context "Testing"
 - Project ID
 - Environment name
 - Request context/reason
+- **NO secret values** - only encrypted blobs
 
 **Data received from API:**
 - Encrypted secret blobs (AES-256-GCM ciphertext)
 - Secret metadata
 - Approval status
+- **NO plaintext secrets**
+
+**Data sent from browser to MCP server:**
+- Decrypted plaintext (via secure WebSocket)
+- Time-limited (max 5 minutes)
+- Only after user approval verified
 
 **Data stored by MCP server:**
 - JWT in OS keychain (encrypted at rest)
 - Approval cache (status + expiration, no secret values)
-- Master key in memory only (never persisted)
+- **NO master key** - never in MCP server
+- **NO persisted plaintext** - memory only, cleared after use
 
 ### Credential Security
 
@@ -1599,7 +1678,23 @@ abyrith-mcp logout
 abyrith-mcp auth
 ```
 
-### Issue 2: "Approval timeout: User did not approve within 5 minutes"
+### Issue 2: "Browser required for decryption"
+
+**Cause:** Abyrith web app not open or user not logged in
+
+**Solution:**
+1. Open Abyrith web app: https://app.abyrith.com
+2. Log in (if not already authenticated)
+3. Keep browser tab open while using AI tools
+4. Ensure master key unlocked (user logged in within session)
+5. Verify WebSocket connection: Check browser console for connection errors
+
+**Why this is required:**
+- Zero-knowledge architecture: Master key only exists in browser
+- No server-side decryption allowed for security compliance
+- Browser performs all decryption using Web Crypto API
+
+### Issue 3: "Approval timeout: User did not approve within 5 minutes"
 
 **Cause:** User didn't see or approve request
 

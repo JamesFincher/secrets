@@ -1,6 +1,6 @@
 ---
 Document: FireCrawl API Integration - Integration Guide
-Version: 1.0.0
+Version: 1.1.0
 Last Updated: 2025-10-30
 Owner: Backend Team
 Status: Draft
@@ -1420,10 +1420,305 @@ curl -X POST http://localhost:8787/api/ai/research \
 
 ## Security Considerations
 
+### SSRF (Server-Side Request Forgery) Protection
+
+**Critical Security Requirement:** All URLs must be validated before passing to FireCrawl to prevent SSRF attacks.
+
+**SSRF Attack Risks:**
+- **Cloud Metadata Endpoints:** Attackers could scrape `http://169.254.169.254/latest/meta-data/` to steal AWS credentials
+- **Internal Network Scanning:** Scraping `http://192.168.1.1/admin` to map internal infrastructure
+- **Localhost Exploitation:** Accessing `http://localhost:5432/` to probe local services
+- **DNS Rebinding:** Domain initially resolves to public IP but later changes to private IP
+
+**Protected IP Ranges:**
+```
+10.0.0.0/8          - Private network (RFC 1918)
+172.16.0.0/12       - Private network (RFC 1918)
+192.168.0.0/16      - Private network (RFC 1918)
+127.0.0.0/8         - Localhost/loopback
+169.254.0.0/16      - Link-local (AWS/GCP metadata)
+::1                 - IPv6 localhost
+```
+
+#### SSRF Protection Implementation
+
+**File:** `src/lib/firecrawl/url-validation.ts`
+
+```typescript
+/**
+ * SSRF Protection: Validate URLs before passing to FireCrawl
+ * Prevents scraping private IPs, localhost, cloud metadata endpoints
+ */
+function isPrivateIP(ip: string): boolean {
+  const parts = ip.split('.').map(Number);
+
+  // Check for private IP ranges
+  return (
+    parts[0] === 10 ||                                      // 10.0.0.0/8
+    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) || // 172.16.0.0/12
+    (parts[0] === 192 && parts[1] === 168) ||                // 192.168.0.0/16
+    parts[0] === 127 ||                                      // 127.0.0.0/8 (localhost)
+    (parts[0] === 169 && parts[1] === 254)                   // 169.254.0.0/16 (link-local)
+  );
+}
+
+async function validateURL(url: string): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const parsedURL = new URL(url);
+
+    // Only allow HTTP/HTTPS
+    if (!['http:', 'https:'].includes(parsedURL.protocol)) {
+      return { valid: false, error: 'Only HTTP/HTTPS protocols allowed' };
+    }
+
+    // Resolve hostname to IP address
+    const hostname = parsedURL.hostname;
+
+    // Block localhost
+    if (['localhost', '127.0.0.1', '::1'].includes(hostname.toLowerCase())) {
+      return { valid: false, error: 'Cannot scrape localhost' };
+    }
+
+    // Check if hostname is an IP address
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (ipRegex.test(hostname)) {
+      if (isPrivateIP(hostname)) {
+        return { valid: false, error: 'Cannot scrape private IP addresses' };
+      }
+    }
+
+    // For domain names, perform DNS resolution (in Workers, use Cloudflare DNS API)
+    // This prevents DNS rebinding attacks
+    const dnsResult = await fetch(`https://1.1.1.1/dns-query?name=${hostname}&type=A`, {
+      headers: { 'Accept': 'application/dns-json' }
+    });
+    const dnsData = await dnsResult.json();
+
+    if (dnsData.Answer) {
+      for (const record of dnsData.Answer) {
+        if (record.type === 1) { // A record
+          if (isPrivateIP(record.data)) {
+            return { valid: false, error: 'Domain resolves to private IP' };
+          }
+        }
+      }
+    }
+
+    return { valid: true };
+  } catch (error) {
+    return { valid: false, error: 'Invalid URL format' };
+  }
+}
+```
+
+#### Integration with FireCrawl Client
+
+**Update `scrapeUrl()` method to validate URLs:**
+
+```typescript
+async scrapeUrl(
+  url: string,
+  options?: ScrapeOptions
+): Promise<ScrapeResult> {
+  // SSRF Protection: Validate URL before scraping
+  const validation = await validateURL(url);
+  if (!validation.valid) {
+    throw new FireCrawlError(
+      `URL validation failed: ${validation.error}`,
+      400
+    );
+  }
+
+  try {
+    const response = await fetch(`${this.endpoint}/scrape`, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({
+        url,
+        ...options
+      }),
+      signal: AbortSignal.timeout(this.timeout)
+    });
+
+    if (!response.ok) {
+      throw new FireCrawlError(
+        `FireCrawl API error: ${response.status}`,
+        response.status
+      );
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    throw this.handleError(error);
+  }
+}
+
+async scrapeMultiple(
+  urls: string[],
+  options?: ScrapeOptions
+): Promise<ScrapeResult[]> {
+  // Validate all URLs before scraping
+  const validations = await Promise.all(urls.map(validateURL));
+
+  const invalidUrls = validations
+    .map((v, i) => ({ validation: v, url: urls[i] }))
+    .filter(({ validation }) => !validation.valid);
+
+  if (invalidUrls.length > 0) {
+    throw new FireCrawlError(
+      `URL validation failed for: ${invalidUrls.map(u => u.url).join(', ')}`,
+      400
+    );
+  }
+
+  // Execute scrapes in parallel
+  const promises = urls.map(url => this.scrapeUrl(url, options));
+  return Promise.all(promises);
+}
+```
+
+#### Prevented Attack Scenarios
+
+**Attack 1: AWS Metadata Endpoint Scraping**
+```
+User Input: http://169.254.169.254/latest/meta-data/iam/security-credentials/
+Blocked By: Link-local IP range (169.254.0.0/16)
+Impact: Prevents stealing AWS credentials from EC2 metadata service
+```
+
+**Attack 2: Internal Network Scanning**
+```
+User Input: http://192.168.1.1/admin
+Blocked By: Private IP range (192.168.0.0/16)
+Impact: Prevents scanning internal network infrastructure
+```
+
+**Attack 3: Localhost Service Exploitation**
+```
+User Input: http://localhost:5432/
+Blocked By: Localhost detection
+Impact: Prevents access to local PostgreSQL database
+```
+
+**Attack 4: DNS Rebinding**
+```
+User Input: http://malicious.com/ (resolves to 10.0.0.1)
+Blocked By: DNS resolution check
+Impact: Prevents domains that resolve to private IPs
+```
+
+**Attack 5: Cloud Provider Metadata**
+```
+# AWS
+Blocked: http://169.254.169.254/latest/meta-data/
+
+# GCP
+Blocked: http://metadata.google.internal/computeMetadata/v1/
+
+# Azure
+Blocked: http://169.254.169.254/metadata/instance?api-version=2021-02-01
+
+Reason: Link-local IP range or DNS resolves to private IP
+Impact: Prevents stealing cloud provider credentials
+```
+
+#### Rate Limiting Per User
+
+**User-level SSRF abuse prevention:**
+
+```typescript
+// Additional rate limiting specifically for research requests
+const USER_RESEARCH_RATE_LIMIT = {
+  maxRequests: 10,           // 10 research requests
+  windowMs: 60 * 60 * 1000   // per hour
+};
+
+async function checkUserRateLimit(userId: string, env: Env): Promise<boolean> {
+  const key = `rate_limit:research:${userId}`;
+  const count = await env.KV.get(key, 'json') || 0;
+
+  if (count >= USER_RESEARCH_RATE_LIMIT.maxRequests) {
+    return false; // Rate limit exceeded
+  }
+
+  // Increment counter
+  await env.KV.put(
+    key,
+    JSON.stringify(count + 1),
+    { expirationTtl: USER_RESEARCH_RATE_LIMIT.windowMs / 1000 }
+  );
+
+  return true;
+}
+```
+
+#### Security Testing
+
+**Test Cases for SSRF Protection:**
+
+```typescript
+// src/lib/firecrawl/url-validation.test.ts
+import { describe, it, expect } from 'vitest';
+import { validateURL } from './url-validation';
+
+describe('SSRF Protection', () => {
+  it('should block localhost', async () => {
+    const result = await validateURL('http://localhost:8080/');
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('localhost');
+  });
+
+  it('should block 127.0.0.1', async () => {
+    const result = await validateURL('http://127.0.0.1/');
+    expect(result.valid).toBe(false);
+  });
+
+  it('should block private IPs (10.x)', async () => {
+    const result = await validateURL('http://10.0.0.1/');
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('private IP');
+  });
+
+  it('should block private IPs (192.168.x)', async () => {
+    const result = await validateURL('http://192.168.1.1/');
+    expect(result.valid).toBe(false);
+  });
+
+  it('should block private IPs (172.16-31.x)', async () => {
+    const result = await validateURL('http://172.16.0.1/');
+    expect(result.valid).toBe(false);
+  });
+
+  it('should block link-local IPs (AWS metadata)', async () => {
+    const result = await validateURL('http://169.254.169.254/latest/meta-data/');
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('private IP');
+  });
+
+  it('should block non-HTTP protocols', async () => {
+    const result = await validateURL('file:///etc/passwd');
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('HTTP/HTTPS');
+  });
+
+  it('should allow valid public URLs', async () => {
+    const result = await validateURL('https://stripe.com/docs/api');
+    expect(result.valid).toBe(true);
+  });
+
+  it('should block domains resolving to private IPs', async () => {
+    // Mock DNS resolution to private IP
+    const result = await validateURL('http://internal-service.example.com/');
+    // Should check DNS and block if resolves to private IP
+  });
+});
+```
+
 ### Data Privacy
 
 **Data sent to FireCrawl:**
-- URLs to scrape (public documentation sites)
+- URLs to scrape (public documentation sites only, validated for SSRF)
 - Extraction prompts (generic, no user data)
 - No PII or sensitive user information
 
@@ -1449,12 +1744,19 @@ curl -X POST http://localhost:8787/api/ai/research \
 - Only AI orchestration Worker can call FireCrawl
 - User cannot directly trigger scrapes (rate limit protection)
 - Admin-only cache invalidation endpoint
+- SSRF validation on all user-provided URLs
 
 ### Compliance
 
 **SOC 2:** FireCrawl API calls logged for audit trail
 
 **GDPR:** No personal data processed or stored
+
+**Security Audit Requirements:**
+- All URLs logged with validation results
+- Failed validation attempts monitored for abuse patterns
+- SSRF protection tested in security audits
+- Rate limiting enforced per user and globally
 
 ---
 
@@ -1720,6 +2022,7 @@ if (env.DEBUG_FIRECRAWL === 'true') {
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
+| 1.1.0 | 2025-10-30 | Backend Team | **CRITICAL SECURITY UPDATE:** Added SSRF protection with URL validation to prevent attacks on internal networks, cloud metadata endpoints, and localhost. Added comprehensive test cases and attack scenario documentation. |
 | 1.0.0 | 2025-10-30 | Backend Team | Initial FireCrawl integration documentation |
 
 ---

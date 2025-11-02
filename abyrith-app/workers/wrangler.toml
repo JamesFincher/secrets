@@ -1,0 +1,31 @@
+name = "abyrith-api-gateway"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+node_compat = true
+
+# Environment variables (secrets managed via wrangler secret put)
+[vars]
+ENVIRONMENT = "development"
+
+# KV Namespaces for rate limiting and caching
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "placeholder_dev"
+preview_id = "placeholder_preview"
+
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "placeholder_dev"
+preview_id = "placeholder_preview"
+
+# Worker routes (configured after deployment)
+# routes = [
+#   { pattern = "api.abyrith.com/*", zone_name = "abyrith.com" }
+# ]
+
+# Limits and configuration
+[build]
+command = "pnpm build"
+
+[build.upload]
+format = "service-worker"

@@ -1,0 +1,24 @@
+{
+  "name": "abyrith-workers",
+  "version": "1.0.0",
+  "description": "Cloudflare Workers API Gateway for Abyrith",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build": "esbuild src/index.ts --bundle --outfile=dist/worker.js --format=esm",
+    "tail": "wrangler tail"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "api-gateway"
+  ],
+  "author": "Abyrith Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20251014.0",
+    "esbuild": "^0.19.12",
+    "typescript": "^5.9.3",
+    "wrangler": "^3.114.15"
+  }
+}

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
 
 interface CreateSystemDialogProps {
   projectId: string;
@@ -28,6 +29,7 @@ const COLOR_OPTIONS = [
 
 export function CreateSystemDialog({ projectId, onClose }: CreateSystemDialogProps) {
   const { createSystem } = useProjectStore();
+  const { toast } = useToast();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
@@ -40,6 +42,11 @@ export function CreateSystemDialog({ projectId, onClose }: CreateSystemDialogPro
 
     if (!name.trim()) {
       setError('System name is required');
+      toast({
+        variant: 'destructive',
+        title: 'Validation error',
+        description: 'System name is required.',
+      });
       return;
     }
 
@@ -54,9 +61,20 @@ export function CreateSystemDialog({ projectId, onClose }: CreateSystemDialogPro
         selectedIcon || undefined,
         selectedColor
       );
+      toast({
+        variant: 'success',
+        title: 'System created',
+        description: `${name} has been added to your project.`,
+      });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create system');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create system';
+      setError(errorMessage);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to create system',
+        description: errorMessage,
+      });
     } finally {
       setIsSubmitting(false);
     }

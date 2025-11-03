@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useProjectStore } from '@/lib/stores/project-store';
+import { useToast } from '@/hooks/use-toast';
 
 interface CreateProjectDialogProps {
   organizationId: string;
@@ -17,6 +18,7 @@ export function CreateProjectDialog({ organizationId, onClose }: CreateProjectDi
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { createProject } = useProjectStore();
+  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,10 +27,21 @@ export function CreateProjectDialog({ organizationId, onClose }: CreateProjectDi
 
     try {
       await createProject(organizationId, name, description);
+      toast({
+        variant: 'success',
+        title: 'Project created',
+        description: `${name} has been created with 3 environments.`,
+      });
       onClose();
     } catch (error) {
       console.error('Failed to create project:', error);
-      setError(error instanceof Error ? error.message : 'Failed to create project. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create project. Please try again.';
+      setError(errorMessage);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to create project',
+        description: errorMessage,
+      });
     } finally {
       setIsSubmitting(false);
     }

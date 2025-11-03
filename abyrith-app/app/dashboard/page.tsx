@@ -41,13 +41,20 @@ export default function DashboardPage() {
 
   useEffect(() => {
     // Auto-create organization for new users
-    if (user && organizations.length === 0 && !currentOrganization) {
+    // Only try to create if we've finished loading and there are truly no orgs
+    if (user && !isLoading && organizations.length === 0 && !currentOrganization && !orgError) {
       createOrganization(`${user.email}'s Workspace`, user.id).catch((error) => {
         console.error('Failed to create organization:', error);
-        setOrgError(error instanceof Error ? error.message : 'Failed to create workspace');
+        // Only show error if it's not a duplicate slug error (org already exists)
+        if (error?.code !== '23505') {
+          setOrgError(error instanceof Error ? error.message : 'Failed to create workspace');
+        } else {
+          // Org exists, just reload to get it
+          loadOrganizations(user.id);
+        }
       });
     }
-  }, [user, organizations, currentOrganization, createOrganization]);
+  }, [user, isLoading, organizations, currentOrganization, createOrganization, orgError, loadOrganizations]);
 
   useEffect(() => {
     if (currentProject) {

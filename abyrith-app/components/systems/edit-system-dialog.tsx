@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/lib/api/supabase';
 
 type System = Tables<'systems'>;
@@ -31,6 +32,7 @@ const COLOR_OPTIONS = [
 
 export function EditSystemDialog({ system, onClose }: EditSystemDialogProps) {
   const { updateSystem, deleteSystem } = useProjectStore();
+  const { toast } = useToast();
   const [name, setName] = useState(system.name);
   const [description, setDescription] = useState(system.description || '');
   const [selectedIcon, setSelectedIcon] = useState<string | null>(system.icon);
@@ -44,6 +46,11 @@ export function EditSystemDialog({ system, onClose }: EditSystemDialogProps) {
 
     if (!name.trim()) {
       setError('System name is required');
+      toast({
+        variant: 'destructive',
+        title: 'Validation error',
+        description: 'System name is required.',
+      });
       return;
     }
 
@@ -57,9 +64,20 @@ export function EditSystemDialog({ system, onClose }: EditSystemDialogProps) {
         icon: selectedIcon,
         color: selectedColor,
       });
+      toast({
+        variant: 'success',
+        title: 'System updated',
+        description: `${name} has been updated.`,
+      });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update system');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update system';
+      setError(errorMessage);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to update system',
+        description: errorMessage,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -71,9 +89,20 @@ export function EditSystemDialog({ system, onClose }: EditSystemDialogProps) {
 
     try {
       await deleteSystem(system.id);
+      toast({
+        variant: 'success',
+        title: 'System deleted',
+        description: `${system.name} has been removed.`,
+      });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete system');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete system';
+      setError(errorMessage);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to delete system',
+        description: errorMessage,
+      });
       setIsSubmitting(false);
     }
   };

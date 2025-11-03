@@ -1,8 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useAuth } from '@/lib/hooks/use-auth';
 import { useProjectStore } from '@/lib/stores/project-store';
 import { useSecretStore } from '@/lib/stores/secret-store';
@@ -12,8 +10,7 @@ import { CreateSecretDialog } from '@/components/secrets/create-secret-dialog';
 import { SecretCard } from '@/components/secrets/secret-card';
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const { user, preferences, isAuthenticated, hasMasterPassword, signOut } = useAuth();
+  const { user } = useAuth();
   const {
     organizations,
     currentOrganization,
@@ -33,20 +30,10 @@ export default function DashboardPage() {
   const [orgError, setOrgError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/auth/signin');
-    } else if (!preferences) {
-      router.push('/auth/setup-master-password');
-    } else if (!hasMasterPassword) {
-      router.push('/auth/unlock');
-    }
-  }, [isAuthenticated, preferences, hasMasterPassword, router]);
-
-  useEffect(() => {
-    if (user && isAuthenticated) {
+    if (user) {
       loadOrganizations(user.id);
     }
-  }, [user, isAuthenticated, loadOrganizations]);
+  }, [user, loadOrganizations]);
 
   useEffect(() => {
     // Auto-create organization for new users
@@ -70,41 +57,11 @@ export default function DashboardPage() {
     }
   }, [selectedEnvironmentId, loadSecrets]);
 
-  if (!user || !preferences || !hasMasterPassword) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">Loading...</p>
-      </div>
-    );
-  }
-
   const selectedEnvironment = environments.find((e) => e.id === selectedEnvironmentId);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b sticky top-0 bg-background z-10">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Abyrith</h1>
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard/ai">
-              <Button variant="outline" size="sm">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                </svg>
-                AI Assistant
-              </Button>
-            </Link>
-            <p className="text-sm text-muted-foreground">{user.email}</p>
-            <Button variant="outline" size="sm" onClick={signOut}>
-              Sign Out
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen p-8">
+      <div className="max-w-6xl mx-auto">
           {/* Organization Error */}
           {orgError && (
             <div className="mb-4 bg-destructive/15 text-destructive px-4 py-3 rounded-md">
@@ -226,7 +183,6 @@ export default function DashboardPage() {
               </p>
             </div>
           )}
-        </div>
       </div>
 
       {/* Dialogs */}

@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/hooks/use-auth';
 import { useProjectStore } from '@/lib/stores/project-store';
 import { useSecretStore } from '@/lib/stores/secret-store';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { CreateProjectDialog } from '@/components/projects/create-project-dialog';
 import { CreateSecretDialog } from '@/components/secrets/create-secret-dialog';
 import { SecretCard } from '@/components/secrets/secret-card';
@@ -32,6 +33,7 @@ export default function DashboardPage() {
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string | null>(null);
   const [selectedSystemId, setSelectedSystemId] = useState<string | null>(null);
   const [orgError, setOrgError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -78,10 +80,24 @@ export default function DashboardPage() {
   const selectedEnvironment = environments.find((e) => e.id === selectedEnvironmentId);
   const selectedSystem = systems.find((s) => s.id === selectedSystemId);
 
-  // Filter secrets by selected system
-  const filteredSecrets = selectedSystemId
-    ? secrets.filter((s) => s.system_id === selectedSystemId)
-    : secrets;
+  // Filter secrets by selected system and search query
+  const filteredSecrets = secrets.filter((secret) => {
+    // Filter by system if selected
+    if (selectedSystemId && secret.system_id !== selectedSystemId) {
+      return false;
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const matchesKey = secret.key.toLowerCase().includes(query);
+      const matchesDescription = secret.description?.toLowerCase().includes(query);
+      const matchesService = secret.service_name?.toLowerCase().includes(query);
+      return matchesKey || matchesDescription || matchesService;
+    }
+
+    return true;
+  });
 
   return (
     <div className="min-h-screen p-8">
@@ -217,6 +233,49 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {/* Search Bar */}
+          {currentProject && selectedEnvironment && secrets.length > 0 && (
+            <div className="mb-6">
+              <div className="relative">
+                <svg
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+                <Input
+                  type="text"
+                  placeholder="Search secrets by name, description, or service..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-10"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              {searchQuery && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Found {filteredSecrets.length} {filteredSecrets.length === 1 ? 'secret' : 'secrets'}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Secrets List */}
           {currentProject && selectedEnvironment && (
             <div>
@@ -234,13 +293,22 @@ export default function DashboardPage() {
               {filteredSecrets.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-8 text-center">
                   <p className="text-muted-foreground mb-4">
-                    {selectedSystemId
+                    {searchQuery
+                      ? `No secrets match "${searchQuery}"`
+                      : selectedSystemId
                       ? 'No secrets found for this system in this environment.'
                       : 'No secrets in this environment yet.'}
                   </p>
-                  <Button onClick={() => setShowCreateSecret(true)}>
-                    Add Secret
-                  </Button>
+                  {!searchQuery && (
+                    <Button onClick={() => setShowCreateSecret(true)}>
+                      Add Secret
+                    </Button>
+                  )}
+                  {searchQuery && (
+                    <Button variant="outline" onClick={() => setSearchQuery('')}>
+                      Clear Search
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4">

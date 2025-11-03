@@ -10,6 +10,7 @@ import { CreateProjectDialog } from '@/components/projects/create-project-dialog
 import { CreateSecretDialog } from '@/components/secrets/create-secret-dialog';
 import { SecretCard } from '@/components/secrets/secret-card';
 import { Breadcrumb } from '@/components/dashboard/breadcrumb';
+import { SecretCardSkeletonList } from '@/components/ui/skeletons/secret-card-skeleton';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -34,6 +35,7 @@ export default function DashboardPage() {
   const [selectedSystemId, setSelectedSystemId] = useState<string | null>(null);
   const [orgError, setOrgError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoadingSecrets, setIsLoadingSecrets] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -73,7 +75,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (selectedEnvironmentId) {
-      loadSecrets(selectedEnvironmentId);
+      setIsLoadingSecrets(true);
+      loadSecrets(selectedEnvironmentId).finally(() => {
+        setIsLoadingSecrets(false);
+      });
     }
   }, [selectedEnvironmentId, loadSecrets]);
 
@@ -290,7 +295,9 @@ export default function DashboardPage() {
                 </Button>
               </div>
 
-              {filteredSecrets.length === 0 ? (
+              {isLoadingSecrets ? (
+                <SecretCardSkeletonList count={3} />
+              ) : filteredSecrets.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-8 text-center">
                   <p className="text-muted-foreground mb-4">
                     {searchQuery

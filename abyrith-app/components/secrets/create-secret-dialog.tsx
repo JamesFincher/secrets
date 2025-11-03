@@ -8,6 +8,7 @@ import { useSecretStore } from '@/lib/stores/secret-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useProjectStore } from '@/lib/stores/project-store';
 import { MasterPasswordPrompt } from '@/components/auth/MasterPasswordPrompt';
+import { useToast } from '@/hooks/use-toast';
 
 interface CreateSecretDialogProps {
   projectId: string;
@@ -32,6 +33,7 @@ export function CreateSecretDialog({
   const { createSecret } = useSecretStore();
   const { masterPassword } = useAuthStore();
   const { systems } = useProjectStore();
+  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,10 +51,19 @@ export function CreateSecretDialog({
         serviceName,
         systemId: systemId || undefined,
       });
+      toast({
+        variant: 'success',
+        title: 'Secret created',
+        description: `${key} has been encrypted and stored.`,
+      });
       onClose();
     } catch (error) {
       console.error('Failed to create secret:', error);
-      alert('Failed to create secret. Please try again.');
+      toast({
+        variant: 'destructive',
+        title: 'Failed to create secret',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -71,10 +82,19 @@ export function CreateSecretDialog({
         serviceName,
         systemId: systemId || undefined,
       });
+      toast({
+        variant: 'success',
+        title: 'Secret created',
+        description: `${key} has been encrypted and stored.`,
+      });
       onClose();
     } catch (error) {
       console.error('Failed to create secret:', error);
-      alert('Failed to create secret. Please try again.');
+      toast({
+        variant: 'destructive',
+        title: 'Failed to create secret',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      });
     } finally {
       setIsSubmitting(false);
     }

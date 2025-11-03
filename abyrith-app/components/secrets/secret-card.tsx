@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useSecretStore } from '@/lib/stores/secret-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { MasterPasswordPrompt } from '@/components/auth/MasterPasswordPrompt';
+import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/lib/api/supabase';
 
 type Secret = Tables<'secrets'>;
@@ -21,6 +22,7 @@ export function SecretCard({ secret }: SecretCardProps) {
 
   const { decryptSecret, getDecryptedSecret, deleteSecret } = useSecretStore();
   const { masterPassword } = useAuthStore();
+  const { toast } = useToast();
 
   const decryptedValue = getDecryptedSecret(secret.id);
 
@@ -39,9 +41,18 @@ export function SecretCard({ secret }: SecretCardProps) {
     try {
       await decryptSecret(secret, masterPassword);
       setIsRevealed(true);
+      toast({
+        variant: 'success',
+        title: 'Secret decrypted',
+        description: 'Your secret is now visible.',
+      });
     } catch (error) {
       console.error('Decryption failed:', error);
-      alert('Failed to decrypt secret. Invalid master password?');
+      toast({
+        variant: 'destructive',
+        title: 'Decryption failed',
+        description: 'Invalid master password or corrupted secret.',
+      });
     } finally {
       setIsDecrypting(false);
     }
@@ -56,9 +67,18 @@ export function SecretCard({ secret }: SecretCardProps) {
     try {
       await decryptSecret(secret, newMasterPassword);
       setIsRevealed(true);
+      toast({
+        variant: 'success',
+        title: 'Secret decrypted',
+        description: 'Your secret is now visible.',
+      });
     } catch (error) {
       console.error('Decryption failed:', error);
-      alert('Failed to decrypt secret. Invalid master password?');
+      toast({
+        variant: 'destructive',
+        title: 'Decryption failed',
+        description: 'Invalid master password or corrupted secret.',
+      });
     } finally {
       setIsDecrypting(false);
     }
@@ -71,21 +91,48 @@ export function SecretCard({ secret }: SecretCardProps) {
       await navigator.clipboard.writeText(decryptedValue);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+      toast({
+        variant: 'success',
+        title: 'Copied to clipboard',
+        description: `${secret.key} copied successfully.`,
+      });
     } catch (error) {
       console.error('Failed to copy:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Copy failed',
+        description: 'Could not copy to clipboard.',
+      });
     }
   };
 
   const handleDelete = async () => {
+    // Show confirmation dialog via toast with action
+    toast({
+      variant: 'warning',
+      title: `Delete "${secret.key}"?`,
+      description: 'This action cannot be undone.',
+    });
+
+    // Use native confirm for now - we can improve this later with a custom modal
     if (!confirm(`Are you sure you want to delete "${secret.key}"?`)) {
       return;
     }
 
     try {
       await deleteSecret(secret.id);
+      toast({
+        variant: 'success',
+        title: 'Secret deleted',
+        description: `${secret.key} has been removed.`,
+      });
     } catch (error) {
       console.error('Failed to delete secret:', error);
-      alert('Failed to delete secret. Please try again.');
+      toast({
+        variant: 'destructive',
+        title: 'Delete failed',
+        description: 'Could not delete secret. Please try again.',
+      });
     }
   };
 

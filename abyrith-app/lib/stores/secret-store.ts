@@ -127,6 +127,7 @@ export const useSecretStore = create<SecretState>((set, get) => ({
           // Metadata fields
           description: metadata.description,
           service_name: metadata.serviceName,
+          system_id: metadata.systemId || null,
           tags: metadata.tags || [],
           created_by: user.id,
         })

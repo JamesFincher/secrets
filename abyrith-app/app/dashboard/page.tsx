@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { CreateProjectDialog } from '@/components/projects/create-project-dialog';
 import { CreateSecretDialog } from '@/components/secrets/create-secret-dialog';
 import { SecretCard } from '@/components/secrets/secret-card';
+import { Breadcrumb } from '@/components/dashboard/breadcrumb';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -17,16 +18,19 @@ export default function DashboardPage() {
     projects,
     currentProject,
     environments,
+    systems,
     isLoading,
     loadOrganizations,
     createOrganization,
     setCurrentProject,
+    loadSystems,
   } = useProjectStore();
   const { secrets, loadSecrets } = useSecretStore();
 
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateSecret, setShowCreateSecret] = useState(false);
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string | null>(null);
+  const [selectedSystemId, setSelectedSystemId] = useState<string | null>(null);
   const [orgError, setOrgError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,6 +50,13 @@ export default function DashboardPage() {
   }, [user, organizations, currentOrganization, createOrganization]);
 
   useEffect(() => {
+    if (currentProject) {
+      loadSystems(currentProject.id);
+      setSelectedSystemId(null); // Reset system selection when project changes
+    }
+  }, [currentProject, loadSystems]);
+
+  useEffect(() => {
     if (environments.length > 0 && !selectedEnvironmentId) {
       setSelectedEnvironmentId(environments[0].id);
     }
@@ -58,10 +69,24 @@ export default function DashboardPage() {
   }, [selectedEnvironmentId, loadSecrets]);
 
   const selectedEnvironment = environments.find((e) => e.id === selectedEnvironmentId);
+  const selectedSystem = systems.find((s) => s.id === selectedSystemId);
+
+  // Filter secrets by selected system
+  const filteredSecrets = selectedSystemId
+    ? secrets.filter((s) => s.system_id === selectedSystemId)
+    : secrets;
 
   return (
     <div className="min-h-screen p-8">
       <div className="max-w-6xl mx-auto">
+          {/* Breadcrumb */}
+          <div className="mb-6">
+            <Breadcrumb
+              currentSystem={selectedSystem ? { id: selectedSystem.id, name: selectedSystem.name } : undefined}
+              currentEnvironment={selectedEnvironment ? { id: selectedEnvironment.id, name: selectedEnvironment.name } : undefined}
+            />
+          </div>
+
           {/* Organization Error */}
           {orgError && (
             <div className="mb-4 bg-destructive/15 text-destructive px-4 py-3 rounded-md">
@@ -142,6 +167,49 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {/* Systems Filter */}
+          {currentProject && systems.length > 0 && (
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-muted-foreground">Filter by System</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedSystemId(null)}
+                  className="text-xs"
+                >
+                  Clear Filter
+                </Button>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={() => setSelectedSystemId(null)}
+                  className={`px-3 py-1.5 rounded-md text-sm border transition-colors ${
+                    selectedSystemId === null
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'border-border hover:bg-accent'
+                  }`}
+                >
+                  All Systems
+                </button>
+                {systems.map((system) => (
+                  <button
+                    key={system.id}
+                    onClick={() => setSelectedSystemId(system.id)}
+                    className={`px-3 py-1.5 rounded-md text-sm border transition-colors flex items-center gap-2 ${
+                      selectedSystemId === system.id
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'border-border hover:bg-accent'
+                    }`}
+                  >
+                    {system.icon && <span>{system.icon}</span>}
+                    <span>{system.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Secrets List */}
           {currentProject && selectedEnvironment && (
             <div>
@@ -156,18 +224,20 @@ export default function DashboardPage() {
                 </Button>
               </div>
 
-              {secrets.length === 0 ? (
+              {filteredSecrets.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-8 text-center">
                   <p className="text-muted-foreground mb-4">
-                    No secrets in this environment yet.
+                    {selectedSystemId
+                      ? 'No secrets found for this system in this environment.'
+                      : 'No secrets in this environment yet.'}
                   </p>
                   <Button onClick={() => setShowCreateSecret(true)}>
-                    Add Your First Secret
+                    Add Secret
                   </Button>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {secrets.map((secret) => (
+                  {filteredSecrets.map((secret) => (
                     <SecretCard key={secret.id} secret={secret} />
                   ))}
                 </div>

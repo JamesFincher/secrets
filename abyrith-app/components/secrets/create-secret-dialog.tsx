@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSecretStore } from '@/lib/stores/secret-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useProjectStore } from '@/lib/stores/project-store';
 import { MasterPasswordPrompt } from '@/components/auth/MasterPasswordPrompt';
 
 interface CreateSecretDialogProps {
@@ -23,12 +24,14 @@ export function CreateSecretDialog({
   const [value, setValue] = useState('');
   const [description, setDescription] = useState('');
   const [serviceName, setServiceName] = useState('');
+  const [systemId, setSystemId] = useState<string>('');
   const [showValue, setShowValue] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showMasterPasswordPrompt, setShowMasterPasswordPrompt] = useState(false);
 
   const { createSecret } = useSecretStore();
   const { masterPassword } = useAuthStore();
+  const { systems } = useProjectStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +47,7 @@ export function CreateSecretDialog({
       await createSecret(projectId, environmentId, key, value, masterPassword, {
         description,
         serviceName,
+        systemId: systemId || undefined,
       });
       onClose();
     } catch (error) {
@@ -65,6 +69,7 @@ export function CreateSecretDialog({
       await createSecret(projectId, environmentId, key, value, newMasterPassword, {
         description,
         serviceName,
+        systemId: systemId || undefined,
       });
       onClose();
     } catch (error) {
@@ -139,6 +144,28 @@ export function CreateSecretDialog({
               className="mt-1"
             />
           </div>
+
+          {systems.length > 0 && (
+            <div>
+              <Label htmlFor="system">System (optional)</Label>
+              <select
+                id="system"
+                value={systemId}
+                onChange={(e) => setSystemId(e.target.value)}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="">No system (unassigned)</option>
+                {systems.map((system) => (
+                  <option key={system.id} value={system.id}>
+                    {system.icon ? `${system.icon} ` : ''}{system.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Assign this secret to a specific subsystem or component
+              </p>
+            </div>
+          )}
 
           <div className="rounded-lg bg-muted p-3 text-sm">
             <p className="font-semibold mb-1">🔒 Zero-Knowledge Encryption</p>

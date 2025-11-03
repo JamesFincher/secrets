@@ -11,6 +11,7 @@ import type { Tables } from '@/lib/api/supabase';
 type Project = Tables<'projects'>;
 type Environment = Tables<'environments'>;
 type Organization = Tables<'organizations'>;
+type System = Tables<'systems'>;
 
 interface ProjectState {
   organizations: Organization[];
@@ -18,18 +19,25 @@ interface ProjectState {
   projects: Project[];
   currentProject: Project | null;
   environments: Environment[];
+  systems: System[];
+  currentSystem: System | null;
   isLoading: boolean;
   error: string | null;
 
   // Actions
   setCurrentOrganization: (org: Organization) => void;
   setCurrentProject: (project: Project | null) => void;
+  setCurrentSystem: (system: System | null) => void;
   loadOrganizations: (userId: string) => Promise<void>;
   loadProjects: (organizationId: string) => Promise<void>;
   loadEnvironments: (projectId: string) => Promise<void>;
+  loadSystems: (projectId: string) => Promise<void>;
   createOrganization: (name: string, ownerId: string) => Promise<Organization>;
   createProject: (organizationId: string, name: string, description?: string) => Promise<Project>;
   createEnvironment: (projectId: string, name: string, slug: string) => Promise<Environment>;
+  createSystem: (projectId: string, name: string, description?: string, icon?: string, color?: string) => Promise<System>;
+  updateSystem: (systemId: string, updates: Partial<System>) => Promise<System>;
+  deleteSystem: (systemId: string) => Promise<void>;
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -38,6 +46,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   projects: [],
   currentProject: null,
   environments: [],
+  systems: [],
+  currentSystem: null,
   isLoading: false,
   error: null,
 
@@ -49,10 +59,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   setCurrentProject: (project) => {
-    set({ currentProject: project });
+    set({ currentProject: project, currentSystem: null });
     if (project) {
       get().loadEnvironments(project.id);
+      get().loadSystems(project.id);
     }
+  },
+
+  setCurrentSystem: (system) => {
+    set({ currentSystem: system });
   },
 
   /**
@@ -255,6 +270,122 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return env;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create environment';
+      set({ error: errorMessage, isLoading: false });
+      throw error;
+    }
+  },
+
+  /**
+   * Load all systems for a project
+   */
+  loadSystems: async (projectId: string) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const { data, error } = await supabase
+        .from('systems')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('sort_order', { ascending: true });
+
+      if (error) throw error;
+
+      set({ systems: data || [], isLoading: false });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load systems';
+      set({ error: errorMessage, isLoading: false });
+    }
+  },
+
+  /**
+   * Create a new system
+   */
+  createSystem: async (
+    projectId: string,
+    name: string,
+    description?: string,
+    icon?: string,
+    color?: string
+  ) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const { data: system, error } = await (supabase
+        .from('systems') as any)
+        .insert({
+          project_id: projectId,
+          name,
+          description,
+          icon,
+          color,
+          sort_order: get().systems.length,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      set((state) => ({
+        systems: [...state.systems, system],
+        isLoading: false,
+      }));
+
+      return system;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create system';
+      set({ error: errorMessage, isLoading: false });
+      throw error;
+    }
+  },
+
+  /**
+   * Update an existing system
+   */
+  updateSystem: async (systemId: string, updates: Partial<System>) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const { data: system, error } = await (supabase
+        .from('systems') as any)
+        .update(updates)
+        .eq('id', systemId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      set((state) => ({
+        systems: state.systems.map((s) => (s.id === systemId ? system : s)),
+        currentSystem: state.currentSystem?.id === systemId ? system : state.currentSystem,
+        isLoading: false,
+      }));
+
+      return system;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update system';
+      set({ error: errorMessage, isLoading: false });
+      throw error;
+    }
+  },
+
+  /**
+   * Delete a system
+   */
+  deleteSystem: async (systemId: string) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const { error } = await supabase.from('systems').delete().eq('id', systemId);
+
+      if (error) throw error;
+
+      set((state) => ({
+        systems: state.systems.filter((s) => s.id !== systemId),
+        currentSystem: state.currentSystem?.id === systemId ? null : state.currentSystem,
+        isLoading: false,
+      }));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete system';
       set({ error: errorMessage, isLoading: false });
       throw error;
     }

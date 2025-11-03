@@ -10,7 +10,13 @@ This is a **documentation repository** for **Abyrith**, an AI-native secrets man
 
 **Purpose:** Centralized documentation for product strategy, technical architecture, and team practices for the Abyrith project.
 
-**Current Status:** Planning & Documentation Phase (Pre-MVP)
+**Current Status:** MVP Development - 90% Complete (Week 2 Complete, Week 3 In Progress)
+
+**Progress Tracker:**
+- Week 0: Baseline (30% - basic security & CRUD)
+- Week 1: Infrastructure & UI (65% - Workers, chat UI, audit logging, FireCrawl)
+- Week 2: AI Integration (90% - Claude API, streaming, guided acquisition)
+- Week 3: Polish & Validation (Target: 100% - error tracking, team mgmt, testing)
 
 ---
 
@@ -82,6 +88,41 @@ When working on this project, these principles are foundational:
 - Don't reinvent the wheel
 - Keep code simple and readable
 - Build only what makes us unique
+
+---
+
+## Retrospective Learnings (Week 1 & 2)
+
+**Date:** 2025-11-02
+**Source:** `/RETROSPECTIVE.md` - Complete retrospective analysis
+
+### What Worked Exceptionally Well ⭐
+
+1. **Parallel Agent Deployment** - 3.5x speedup vs sequential
+2. **Comprehensive Planning** - IMPLEMENTATION-PLAN.md eliminated scope creep
+3. **Documentation-First Culture** - 6,700 lines of docs alongside code
+4. **Clear Integration Points** - Zero integration conflicts
+5. **TypeScript Throughout** - Caught errors before runtime
+
+### Critical Lessons Learned ⚠️
+
+1. **Testing Cannot Be Deferred** - Code correctness ≠ integration working
+2. **Validation is Essential** - Speed without validation creates risk
+3. **Documentation Drifts** - Docs created by different agents need alignment
+4. **Integration Must Be Tested** - Schema correctness ≠ app integration
+5. **Performance Needs Measurement** - Targets need benchmark verification
+
+### **NEW REQUIREMENT: Validation Phase**
+
+**Every workstream MUST now include:**
+
+✅ **Code Creation** (Agent work)
+✅ **Integration Testing** (Real API keys, end-to-end)
+✅ **Manual UI Testing** (User flows, mobile, accessibility)
+✅ **Documentation Validation** (Alignment-checker, cross-reference)
+✅ **Performance Benchmarking** (Load testing, query optimization)
+
+**Without validation, work is incomplete.**
 
 ---
 
@@ -436,6 +477,65 @@ Dependencies: [list of docs this depends on]
 7. **Plan integration points** (`09-integrations/`)
 
 **Use parallel agents for each layer!**
+
+### Workflow 5: Validation & Testing (NEW - Post-Retrospective)
+
+**CRITICAL: After creating ANY code or feature, MUST validate!**
+
+**Step 1: Configure Real Environment** (Before testing)
+```bash
+# Configure API keys in .dev.vars
+ANTHROPIC_API_KEY=sk-ant-YOUR_KEY
+FIRECRAWL_API_KEY=fc-sk-YOUR_KEY
+SENTRY_DSN=https://YOUR_SENTRY_DSN
+SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+```
+
+**Step 2: End-to-End Testing** (Required)
+1. Start all services (frontend + workers + database)
+2. Test complete user flow from start to finish
+3. Verify with real API calls (not mocks)
+4. Document test results
+5. Fix any issues found
+
+**Step 3: Integration Testing** (Required)
+1. Test database operations through app UI
+2. Verify RLS policies work correctly
+3. Test audit logging captures events
+4. Verify API endpoints respond correctly
+5. Test error handling
+
+**Step 4: Manual UI Testing** (Required)
+1. Test all user flows
+2. Mobile responsiveness
+3. Accessibility (keyboard navigation)
+4. Screenshot working features
+5. Test edge cases and errors
+
+**Step 5: Documentation Validation** (Required)
+1. Run alignment-checker agent
+2. Verify code examples work
+3. Update architecture diagrams
+4. Cross-reference all docs
+5. Fix any inconsistencies
+
+**Step 6: Performance Benchmarking** (Required)
+1. Load test API endpoints
+2. Database query performance
+3. Streaming latency measurement
+4. Memory profiling
+5. Document benchmarks
+
+**Validation Checklist:**
+- [ ] Real API keys configured
+- [ ] End-to-end test passes
+- [ ] Integration tests pass
+- [ ] Manual UI testing complete
+- [ ] Documentation aligned
+- [ ] Performance benchmarks meet targets
+- [ ] Security audit passes
+
+**Without completing this workflow, the feature is NOT done.**
 
 ---
 

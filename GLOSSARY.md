@@ -52,8 +52,21 @@ Running code and storing data closer to end users (at the "edge" of the network)
 ### Environment
 A distinct deployment context for an application, such as Development, Staging, or Production. Each environment typically has its own set of secrets to prevent production credentials from being used in testing.
 
+### DEK (Data Encryption Key)
+A cryptographic key used to encrypt actual data (secrets). In Abyrith's envelope encryption pattern, a unique DEK is generated for each secret, then that DEK is encrypted with the KEK. This provides defense-in-depth and enables efficient key rotation. See also: Envelope Encryption, KEK.
+
 ### Envelope Encryption
-A two-layer encryption pattern where data is encrypted with a Data Encryption Key (DEK), and that DEK is then encrypted with a Master Key. Think of it like putting a valuable document in a lockbox, then putting that lockbox inside a safe. This allows for efficient key rotation and enhanced security since you only need to re-encrypt the small DEK, not all your data.
+A two-layer encryption pattern where data is encrypted with a Data Encryption Key (DEK), and that DEK is then encrypted with a Key Encryption Key (KEK) derived from the user's master password. Think of it like putting a valuable document in a lockbox, then putting that lockbox inside a safe. This pattern is used throughout Abyrith for all secret storage, providing:
+- Efficient key rotation (only re-encrypt small DEK, not all data)
+- Defense in depth (two layers of encryption)
+- Better security through key separation
+
+**Implementation:** See `/lib/crypto/envelope-encryption.ts`
+**Database Schema:** See `04-database/schemas/secrets-metadata.md` (encrypted_value, encrypted_dek, secret_nonce, dek_nonce, auth_tag fields)
+**Specification:** See `03-security/encryption-specification.md`
+
+### KEK (Key Encryption Key)
+A cryptographic key used to encrypt other keys (specifically Data Encryption Keys). In Abyrith, the KEK is derived from the user's master password using PBKDF2 with 600,000 iterations and is used to encrypt DEKs that protect individual secrets. This enables key rotation without re-encrypting all data. The KEK salt is cached in memory during the user's session for performance. See also: Envelope Encryption, DEK.
 
 ### MCP (Model Context Protocol)
 An open standard developed by Anthropic that allows AI assistants like Claude Code to safely interact with external tools and services. Abyrith implements an MCP server to provide secrets to AI development tools.

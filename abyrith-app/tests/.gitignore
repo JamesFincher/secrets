@@ -1,0 +1,29 @@
+# Playwright Test Artifacts
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Screenshots
+screenshots/
+*.png
+
+# Videos
+videos/
+*.webm
+
+# Traces
+traces/
+*.zip
+
+# Test data exports
+test-data/
+*.sql
+*.dump
+
+# Logs
+*.log
+test-logs/
+
+# Temporary files
+.temp/
+*.tmp

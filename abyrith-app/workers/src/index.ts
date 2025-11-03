@@ -5,61 +5,204 @@
  * Handles routing, authentication, rate limiting, and request orchestration.
  */
 
-export interface Env {
-  // KV Namespaces
-  RATE_LIMIT_KV: KVNamespace;
-  CACHE_KV: KVNamespace;
+import { Hono } from 'hono';
+import { Env } from './types/api';
+import { corsMiddleware } from './middleware/cors';
+import { errorHandler, createSuccessResponse } from './middleware/error-handler';
+import { authMiddleware, optionalAuthMiddleware } from './middleware/auth';
+import {
+  healthRateLimiter,
+  readRateLimiter,
+  writeRateLimiter,
+  aiChatRateLimiter,
+  scrapeRateLimiter,
+} from './middleware/rate-limit';
+import { handleScrape } from './handlers/scrape';
+import { handleAiChat } from './handlers/ai-chat';
 
-  // Environment variables (set via wrangler secret)
-  SUPABASE_URL: string;
-  SUPABASE_ANON_KEY: string;
-  CLAUDE_API_KEY: string;
-  FIRECRAWL_API_KEY: string;
-  ENVIRONMENT: string;
-}
+/**
+ * Initialize Hono app with environment bindings
+ */
+const app = new Hono<{ Bindings: Env }>();
 
-export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url);
+/**
+ * Global middleware
+ */
 
-    // CORS preflight
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        },
-      });
-    }
+// CORS - must be first to handle preflight requests
+app.use('*', corsMiddleware);
 
-    // Health check endpoint
-    if (url.pathname === '/health') {
-      return new Response(JSON.stringify({
-        status: 'ok',
-        environment: env.ENVIRONMENT,
-        timestamp: new Date().toISOString()
-      }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+// Error handler
+app.onError(errorHandler);
 
-    // API routing (placeholder - will implement routes)
-    if (url.pathname.startsWith('/api/v1/')) {
-      // TODO: Implement API gateway routing
-      // - JWT validation
-      // - Rate limiting
-      // - Route to Supabase/Claude/FireCrawl
+/**
+ * Health check endpoint
+ */
+app.get('/health', healthRateLimiter, (c) => {
+  return c.json(
+    createSuccessResponse({
+      status: 'ok',
+      environment: c.env.ENVIRONMENT || 'unknown',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+    })
+  );
+});
 
-      return new Response(JSON.stringify({
-        message: 'API Gateway - Coming Soon',
-        path: url.pathname
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+/**
+ * API v1 Routes
+ */
+const api = new Hono<{ Bindings: Env }>();
 
-    return new Response('Not Found', { status: 404 });
-  },
-};
+/**
+ * Public endpoints (no auth required)
+ */
+api.get('/public/status', readRateLimiter, (c) => {
+  return c.json(
+    createSuccessResponse({
+      api: 'Abyrith API Gateway',
+      version: 'v1',
+      status: 'operational',
+    })
+  );
+});
+
+/**
+ * Protected endpoints (auth required)
+ * These are placeholders for the actual implementation
+ */
+
+// Secrets endpoints (matching /05-api/endpoints/secrets-endpoints.md)
+// POST /secrets - Create new secret
+api.post('/secrets', authMiddleware, writeRateLimiter, (c) => {
+  const user = c.get('user');
+  return c.json(
+    createSuccessResponse({
+      message: 'Create secret endpoint - Coming soon',
+      user: { id: user.id, email: user.email },
+    })
+  );
+});
+
+// GET /secrets/:id - Get secret by ID
+api.get('/secrets/:id', authMiddleware, readRateLimiter, (c) => {
+  const user = c.get('user');
+  const secretId = c.req.param('id');
+  return c.json(
+    createSuccessResponse({
+      message: 'Get secret by ID - Coming soon',
+      secretId,
+      user: { id: user.id, email: user.email },
+    })
+  );
+});
+
+// GET /projects/:project_id/secrets - List all secrets in project
+api.get('/projects/:project_id/secrets', authMiddleware, readRateLimiter, (c) => {
+  const user = c.get('user');
+  const projectId = c.req.param('project_id');
+  return c.json(
+    createSuccessResponse({
+      message: 'List secrets in project - Coming soon',
+      projectId,
+      user: { id: user.id, email: user.email },
+    })
+  );
+});
+
+// PUT /secrets/:id - Update secret
+api.put('/secrets/:id', authMiddleware, writeRateLimiter, (c) => {
+  const user = c.get('user');
+  const secretId = c.req.param('id');
+  return c.json(
+    createSuccessResponse({
+      message: 'Update secret - Coming soon',
+      secretId,
+      user: { id: user.id, email: user.email },
+    })
+  );
+});
+
+// DELETE /secrets/:id - Delete secret
+api.delete('/secrets/:id', authMiddleware, writeRateLimiter, (c) => {
+  const user = c.get('user');
+  const secretId = c.req.param('id');
+  return c.json(
+    createSuccessResponse({
+      message: 'Delete secret - Coming soon',
+      secretId,
+      user: { id: user.id, email: user.email },
+    })
+  );
+});
+
+// Projects endpoints
+api.get('/projects', authMiddleware, readRateLimiter, (c) => {
+  const user = c.get('user');
+  return c.json(
+    createSuccessResponse({
+      message: 'Projects endpoint - Coming soon',
+      user: { id: user.id, email: user.email },
+    })
+  );
+});
+
+api.post('/projects', authMiddleware, writeRateLimiter, (c) => {
+  const user = c.get('user');
+  return c.json(
+    createSuccessResponse({
+      message: 'Create project endpoint - Coming soon',
+      user: { id: user.id, email: user.email },
+    })
+  );
+});
+
+// AI Chat endpoints (higher rate limit)
+api.post('/ai/chat', authMiddleware, aiChatRateLimiter, handleAiChat);
+
+// Documentation scraping endpoints
+api.post('/scrape', authMiddleware, scrapeRateLimiter, async (c) => {
+  // Convert Hono context to standard Request/Response
+  const request = c.req.raw;
+  const env = c.env as any; // Cast to our Env type
+
+  return handleScrape(request, env);
+});
+
+// Audit logs endpoints
+api.get('/audit-logs', authMiddleware, readRateLimiter, (c) => {
+  const user = c.get('user');
+  return c.json(
+    createSuccessResponse({
+      message: 'Audit logs endpoint - Coming soon',
+      user: { id: user.id, email: user.email },
+    })
+  );
+});
+
+/**
+ * Mount API routes under /api/v1
+ */
+app.route('/api/v1', api);
+
+/**
+ * 404 handler
+ */
+app.notFound((c) => {
+  return c.json(
+    {
+      success: false,
+      error: {
+        code: 'NOT_FOUND',
+        message: 'Endpoint not found',
+        statusCode: 404,
+      },
+    },
+    404
+  );
+});
+
+/**
+ * Export worker
+ */
+export default app;

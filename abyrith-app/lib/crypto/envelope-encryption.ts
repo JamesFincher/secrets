@@ -312,12 +312,23 @@ export async function verifyPassword(
   password: string
 ): Promise<boolean> {
   try {
+    console.log('[verifyPassword] Starting verification...');
+    console.log('[verifyPassword] Verification data:', {
+      hasCiphertext: !!encryptedVerification.ciphertext,
+      hasIv: !!encryptedVerification.iv,
+      hasSalt: !!encryptedVerification.salt,
+      algorithm: encryptedVerification.algorithm,
+      iterations: encryptedVerification.iterations
+    });
+
     const ciphertext = base64ToBuffer(encryptedVerification.ciphertext);
     const iv = base64ToBuffer(encryptedVerification.iv);
     const salt = base64ToBuffer(encryptedVerification.salt);
 
+    console.log('[verifyPassword] Buffers created, deriving KEK...');
     const kek = await deriveKEK(password, salt);
 
+    console.log('[verifyPassword] KEK derived, decrypting...');
     const plaintextBuffer = await crypto.subtle.decrypt(
       {
         name: 'AES-GCM',
@@ -331,8 +342,12 @@ export async function verifyPassword(
     const decoder = new TextDecoder();
     const plaintext = decoder.decode(plaintextBuffer);
 
-    return plaintext === 'abyrith-verification-v1';
-  } catch {
+    console.log('[verifyPassword] Decrypted plaintext:', plaintext);
+    const isValid = plaintext === 'abyrith-verification-v1';
+    console.log('[verifyPassword] Verification result:', isValid);
+    return isValid;
+  } catch (error) {
+    console.error('[verifyPassword] ERROR:', error);
     return false;
   }
 }

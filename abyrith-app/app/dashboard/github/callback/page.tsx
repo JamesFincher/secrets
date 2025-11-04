@@ -6,16 +6,20 @@ import { useAuth } from '@/lib/hooks/use-auth';
 import { completeGitHubOAuth } from '@/lib/api/github';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Github, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { Github, CheckCircle2, XCircle, Loader2, Lock } from 'lucide-react';
 
 export default function GitHubCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { masterPassword, preferences } = useAuth();
+  const { masterPassword, preferences, verifyMasterPassword } = useAuth();
   const { toast } = useToast();
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [status, setStatus] = useState<'loading' | 'need_password' | 'success' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
   useEffect(() => {
     handleCallback();
@@ -45,29 +49,15 @@ export default function GitHubCallbackPage() {
         throw new Error('Invalid state parameter - possible CSRF attack');
       }
 
-      // Clean up stored state
-      sessionStorage.removeItem('github_oauth_state');
-
       // Check if master password is available
       if (!masterPassword || !preferences) {
-        throw new Error('Master password required - please unlock your vault first');
+        // Need to prompt for password
+        setStatus('need_password');
+        return;
       }
 
       // Complete OAuth flow
-      const kekSalt = preferences.masterPasswordVerification.salt;
-      await completeGitHubOAuth(code, state, masterPassword, kekSalt);
-
-      // Success!
-      setStatus('success');
-      toast({
-        title: 'GitHub Connected',
-        description: 'Your GitHub account has been successfully connected',
-      });
-
-      // Redirect to GitHub page after 2 seconds
-      setTimeout(() => {
-        router.push('/dashboard/github');
-      }, 2000);
+      await completeOAuth(code, state, masterPassword, preferences.masterPasswordVerification.salt);
     } catch (error) {
       console.error('OAuth callback error:', error);
       const message = error instanceof Error ? error.message : 'Failed to complete GitHub connection';
@@ -79,6 +69,61 @@ export default function GitHubCallbackPage() {
         variant: 'destructive',
       });
     }
+  }
+
+  async function handlePasswordSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setIsVerifying(true);
+    setErrorMessage('');
+
+    try {
+      // Verify password
+      const isValid = await verifyMasterPassword(passwordInput);
+
+      if (!isValid) {
+        setErrorMessage('Incorrect master password');
+        setIsVerifying(false);
+        return;
+      }
+
+      // Get parameters again
+      const code = searchParams.get('code');
+      const state = searchParams.get('state');
+      const prefs = preferences;
+
+      if (!code || !state || !prefs) {
+        throw new Error('Missing required parameters');
+      }
+
+      // Complete OAuth flow with verified password
+      await completeOAuth(code, state, passwordInput, prefs.masterPasswordVerification.salt);
+    } catch (error) {
+      console.error('Password verification error:', error);
+      const message = error instanceof Error ? error.message : 'Failed to verify password';
+      setErrorMessage(message);
+      setIsVerifying(false);
+    }
+  }
+
+  async function completeOAuth(code: string, state: string, password: string, kekSalt: string) {
+    setStatus('loading');
+
+    // Clean up stored state
+    sessionStorage.removeItem('github_oauth_state');
+
+    await completeGitHubOAuth(code, state, password, kekSalt);
+
+    // Success!
+    setStatus('success');
+    toast({
+      title: 'GitHub Connected',
+      description: 'Your GitHub account has been successfully connected',
+    });
+
+    // Redirect to GitHub page after 2 seconds
+    setTimeout(() => {
+      router.push('/dashboard/github');
+    }, 2000);
   }
 
   function handleRetry() {
@@ -99,6 +144,61 @@ export default function GitHubCallbackPage() {
                 <h2 className="text-2xl font-semibold mb-2">Connecting GitHub...</h2>
                 <p className="text-muted-foreground">
                   Please wait while we complete the connection
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* Password Prompt State */}
+          {status === 'need_password' && (
+            <>
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                <Lock className="w-8 h-8 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold mb-2">Confirm Your Identity</h2>
+                <p className="text-muted-foreground">
+                  Enter your master password to encrypt and store your GitHub token
+                </p>
+              </div>
+              <form onSubmit={handlePasswordSubmit} className="space-y-4 text-left">
+                {errorMessage && (
+                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive text-center">
+                    {errorMessage}
+                  </div>
+                )}
+                <div>
+                  <Label htmlFor="password">Master Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    placeholder="Enter your master password"
+                    required
+                    autoFocus
+                    disabled={isVerifying}
+                    className="mt-1"
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={isVerifying}>
+                  {isVerifying ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    'Continue'
+                  )}
+                </Button>
+              </form>
+              <div className="rounded-lg bg-blue-500/10 p-4 border border-blue-500/20 text-left">
+                <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">
+                  🔒 Zero-Knowledge Encryption
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Your GitHub token will be encrypted with your master password before storage.
+                  The server never sees your plaintext token.
                 </p>
               </div>
             </>

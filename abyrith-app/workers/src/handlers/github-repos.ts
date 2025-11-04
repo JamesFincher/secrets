@@ -74,7 +74,7 @@ async function getGitHubToken(userId: string, env: Env): Promise<string> {
  */
 async function getLinkedRepoIds(userId: string, env: Env): Promise<Set<number>> {
   const response = await fetch(
-    `${env.SUPABASE_URL}/rest/v1/github_linked_repos?user_id=eq.${userId}&select=repo_id`,
+    `${env.SUPABASE_URL}/rest/v1/github_linked_repos?user_id=eq.${userId}&select=github_repo_id`,
     {
       headers: {
         'apikey': env.SUPABASE_ANON_KEY,
@@ -88,7 +88,7 @@ async function getLinkedRepoIds(userId: string, env: Env): Promise<Set<number>> 
   }
 
   const linkedRepos = await response.json();
-  return new Set(linkedRepos.map((r: any) => r.repo_id));
+  return new Set(linkedRepos.map((r: any) => r.github_repo_id));
 }
 
 /**

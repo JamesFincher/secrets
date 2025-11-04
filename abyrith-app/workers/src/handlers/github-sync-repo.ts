@@ -212,8 +212,27 @@ async function logSyncOperation(
   secretsSkipped: number,
   secretsFailed: number,
   importedFiles: string[],
-  env: Env
+  env: Env,
+  token: string
 ): Promise<string> {
+  // Fetch user's organization
+  const orgResponse = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/organization_members?user_id=eq.${userId}&select=organization_id`,
+    {
+      headers: {
+        'apikey': env.SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+      },
+    }
+  );
+
+  const orgData = await orgResponse.json();
+  if (!orgData || orgData.length === 0) {
+    throw new Error('User not associated with an organization');
+  }
+
+  const organizationId = orgData[0].organization_id;
+
   const response = await fetch(`${env.SUPABASE_URL}/rest/v1/github_sync_logs`, {
     method: 'POST',
     headers: {
@@ -223,6 +242,7 @@ async function logSyncOperation(
       'Prefer': 'return=representation',
     },
     body: JSON.stringify({
+      organization_id: organizationId,
       linked_repo_id: linkedRepoId,
       user_id: userId,
       sync_type: syncType,
@@ -292,9 +312,13 @@ export async function handleGitHubSyncRepo(
       );
     }
 
+    // Get JWT token from Authorization header
+    const authHeader = c.req.header('Authorization');
+    const jwtToken = authHeader?.replace('Bearer ', '') || '';
+
     // Get linked repo details
     const repoResponse = await fetch(
-      `${env.SUPABASE_URL}/rest/v1/github_linked_repos?repo_id=eq.${repoId}&user_id=eq.${user.id}&select=*`,
+      `${env.SUPABASE_URL}/rest/v1/github_linked_repos?github_repo_id=eq.${repoId}&user_id=eq.${user.id}&select=*`,
       {
         headers: {
           'apikey': env.SUPABASE_ANON_KEY,
@@ -398,9 +422,13 @@ export async function handleGitHubSyncRepo(
           }
         }
 
-        // IMPORTANT: In production, this should NOT be done server-side
-        // The client should encrypt the secret value before sending it
-        // This is a placeholder to demonstrate the flow
+        // TODO: SECURITY CRITICAL - Secrets should be encrypted client-side before calling this endpoint
+        // The frontend should:
+        // 1. Fetch secrets preview
+        // 2. Encrypt each secret with user's master key
+        // 3. Send encrypted secrets to this endpoint
+        //
+        // This placeholder Base64 encoding is NOT secure and violates zero-knowledge architecture
         const placeholderEncryptedValue = Buffer.from(secret.value).toString('base64');
 
         // Import secret
@@ -453,7 +481,8 @@ export async function handleGitHubSyncRepo(
       skipped,
       failed,
       filesScanned,
-      env
+      env,
+      jwtToken
     );
 
     const response: SyncResponse = {

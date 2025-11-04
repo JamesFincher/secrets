@@ -112,12 +112,29 @@ export interface SecretPreview {
 export async function initGitHubOAuth(
   redirectUri: string
 ): Promise<{ oauth_url: string; state: string }> {
-  const { data, error } = await supabase.functions.invoke('github-connect', {
-    body: { redirect_uri: redirectUri },
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
+
+  const workerUrl = process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8787';
+  const response = await fetch(`${workerUrl}/api/v1/github/connect`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      redirect_uri: redirectUri,
+      scopes: ['repo', 'read:user']
+    })
   });
 
-  if (error) throw new Error(`Failed to initialize GitHub OAuth: ${error.message}`);
-  return data;
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.message || 'Failed to initialize GitHub OAuth');
+  }
+
+  const result = await response.json();
+  return result.data;
 }
 
 /**
@@ -138,18 +155,26 @@ export async function completeGitHubOAuth(
   kekSalt: string
 ): Promise<GitHubConnection> {
   // Step 1: Exchange code for access token (server-side)
-  const { data: tokenData, error: exchangeError } = await supabase.functions.invoke(
-    'github-callback',
-    {
-      body: { code, state },
-    }
-  );
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session) throw new Error('Not authenticated');
 
-  if (exchangeError) {
-    throw new Error(`OAuth exchange failed: ${exchangeError.message}`);
+  const workerUrl = process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8787';
+  const response = await fetch(`${workerUrl}/api/v1/github/callback`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${sessionData.session.access_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ code, state })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`OAuth exchange failed: ${error.error?.message || 'Unknown error'}`);
   }
 
-  const { access_token, github_user, scope } = tokenData;
+  const result = await response.json();
+  const { access_token, github_user, scope, connection_id } = result.data;
 
   // Step 2: Encrypt token client-side (zero-knowledge)
   const encryptedToken = await encryptGitHubToken(
@@ -159,16 +184,13 @@ export async function completeGitHubOAuth(
   );
 
   // Step 3: Store encrypted token in database
-  const { data: session } = await supabase.auth.getSession();
-  if (!session?.session?.user) {
-    throw new Error('User not authenticated');
-  }
+  const userId = sessionData.session.user.id;
 
   // Get user's organization
   const { data: orgMember } = await supabase
     .from('organization_members')
     .select('organization_id')
-    .eq('user_id', session.session.user.id)
+    .eq('user_id', userId)
     .single();
 
   if (!orgMember) {
@@ -179,7 +201,7 @@ export async function completeGitHubOAuth(
     .from('github_connections')
     .insert({
       organization_id: orgMember.organization_id,
-      user_id: session.session.user.id,
+      user_id: userId,
       encrypted_github_token: encryptedToken.encrypted_github_token,
       token_nonce: encryptedToken.token_nonce,
       token_dek: encryptedToken.token_dek,
@@ -280,19 +302,26 @@ export async function listGitHubRepositories(
   );
 
   // Call GitHub API via Cloudflare Worker proxy
-  const { data, error } = await supabase.functions.invoke('github-repos', {
-    body: {
-      access_token: accessToken,
-      page,
-      per_page: perPage,
-    },
+  const { data: sessionData2 } = await supabase.auth.getSession();
+  if (!sessionData2?.session) throw new Error('Not authenticated');
+
+  const workerUrl = process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8787';
+  const response = await fetch(`${workerUrl}/api/v1/github/repos?page=${page}&per_page=${perPage}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${sessionData2.session.access_token}`,
+      'X-GitHub-Token': accessToken,
+      'Content-Type': 'application/json'
+    }
   });
 
-  if (error) {
-    throw new Error(`Failed to list repositories: ${error.message}`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Failed to list repositories: ${error.error?.message || 'Unknown error'}`);
   }
 
-  return data;
+  const result = await response.json();
+  return result.data;
 }
 
 /**
@@ -345,9 +374,18 @@ export async function linkGitHubRepository(
   );
 
   // Call link endpoint via Cloudflare Worker
-  const { data, error } = await supabase.functions.invoke('github-link-repo', {
-    body: {
-      access_token: accessToken,
+  const { data: sessionData3 } = await supabase.auth.getSession();
+  if (!sessionData3?.session) throw new Error('Not authenticated');
+
+  const workerUrl = process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8787';
+  const response = await fetch(`${workerUrl}/api/v1/github/repos/link`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${sessionData3.session.access_token}`,
+      'X-GitHub-Token': accessToken,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
       repo_id: repoId,
       repo_owner: repoOwner,
       repo_name: repoName,
@@ -357,14 +395,21 @@ export async function linkGitHubRepository(
       project_id: projectId,
       default_environment_id: defaultEnvironmentId,
       write_marker_file: writeMarkerFile,
-    },
+      sync_config: {
+        env_files: true,
+        github_actions: true,
+        dependencies: true
+      }
+    })
   });
 
-  if (error) {
-    throw new Error(`Failed to link repository: ${error.message}`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Failed to link repository: ${error.error?.message || 'Unknown error'}`);
   }
 
-  return data;
+  const result = await response.json();
+  return result.data;
 }
 
 /**
@@ -399,15 +444,22 @@ export async function unlinkGitHubRepository(
     kekSalt
   );
 
-  const { error } = await supabase.functions.invoke('github-unlink-repo', {
-    body: {
-      access_token: accessToken,
-      repo_id: repoId,
-    },
+  const { data: sessionData4 } = await supabase.auth.getSession();
+  if (!sessionData4?.session) throw new Error('Not authenticated');
+
+  const workerUrl = process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8787';
+  const response = await fetch(`${workerUrl}/api/v1/github/repos/${repoId}/unlink`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${sessionData4.session.access_token}`,
+      'X-GitHub-Token': accessToken,
+      'Content-Type': 'application/json'
+    }
   });
 
-  if (error) {
-    throw new Error(`Failed to unlink repository: ${error.message}`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Failed to unlink repository: ${error.error?.message || 'Unknown error'}`);
   }
 }
 
@@ -451,19 +503,27 @@ export async function previewRepositorySecrets(
     kekSalt
   );
 
-  const { data, error } = await supabase.functions.invoke('github-preview-sync', {
-    body: {
-      access_token: accessToken,
-      repo_id: repoId,
-      sources,
+  const { data: sessionData5 } = await supabase.auth.getSession();
+  if (!sessionData5?.session) throw new Error('Not authenticated');
+
+  const workerUrl = process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8787';
+  const response = await fetch(`${workerUrl}/api/v1/github/repos/${repoId}/preview`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${sessionData5.session.access_token}`,
+      'X-GitHub-Token': accessToken,
+      'Content-Type': 'application/json'
     },
+    body: JSON.stringify({ sources })
   });
 
-  if (error) {
-    throw new Error(`Failed to preview secrets: ${error.message}`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Failed to preview secrets: ${error.error?.message || 'Unknown error'}`);
   }
 
-  return data;
+  const result = await response.json();
+  return result.data;
 }
 
 /**
@@ -505,21 +565,31 @@ export async function syncRepositorySecrets(
     kekSalt
   );
 
-  const { data, error } = await supabase.functions.invoke('github-sync-repo', {
-    body: {
-      access_token: accessToken,
-      repo_id: repoId,
+  const { data: sessionData6 } = await supabase.auth.getSession();
+  if (!sessionData6?.session) throw new Error('Not authenticated');
+
+  const workerUrl = process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8787';
+  const response = await fetch(`${workerUrl}/api/v1/github/repos/${repoId}/sync`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${sessionData6.session.access_token}`,
+      'X-GitHub-Token': accessToken,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
       sources,
       environment_id: environmentId,
-      collision_strategy: collisionStrategy,
-    },
+      collision_strategy: collisionStrategy
+    })
   });
 
-  if (error) {
-    throw new Error(`Failed to sync repository: ${error.message}`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Failed to sync repository: ${error.error?.message || 'Unknown error'}`);
   }
 
-  return data;
+  const result = await response.json();
+  return result.data;
 }
 
 /**

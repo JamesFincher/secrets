@@ -98,8 +98,27 @@ async function storeGitHubConnection(
   userId: string,
   githubUser: { id: number; login: string },
   scopes: string[],
-  env: Env
+  env: Env,
+  token: string
 ): Promise<string> {
+  // Fetch user's organization
+  const orgResponse = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/organization_members?user_id=eq.${userId}&select=organization_id`,
+    {
+      headers: {
+        'apikey': env.SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+      },
+    }
+  );
+
+  const orgData = await orgResponse.json();
+  if (!orgData || orgData.length === 0) {
+    throw new Error('User not associated with an organization');
+  }
+
+  const organizationId = orgData[0].organization_id;
+
   const response = await fetch(`${env.SUPABASE_URL}/rest/v1/github_connections`, {
     method: 'POST',
     headers: {
@@ -109,6 +128,7 @@ async function storeGitHubConnection(
       'Prefer': 'return=representation',
     },
     body: JSON.stringify({
+      organization_id: organizationId,
       user_id: userId,
       github_user_id: githubUser.id,
       github_username: githubUser.login,
@@ -188,29 +208,31 @@ export async function handleGitHubCallback(
     // Parse scopes
     const scopes = tokenData.scope.split(' ').filter(s => s.length > 0);
 
+    // Get JWT token from Authorization header
+    const authHeader = c.req.header('Authorization');
+    const jwtToken = authHeader?.replace('Bearer ', '') || '';
+
     // Store connection metadata (without token)
     // Token will be returned to client for encryption
     const connectionId = await storeGitHubConnection(
       user.id,
       githubUser,
       scopes,
-      env
+      env,
+      jwtToken
     );
 
     // Return connection info + token (client will encrypt token)
-    const response: CallbackResponse = {
-      connection_id: connectionId,
-      github_username: githubUser.login,
-      github_user_id: githubUser.id,
-      scopes: scopes,
-      expires_at: null, // GitHub OAuth tokens don't expire
-    };
-
-    // IMPORTANT: In production, we should return the access token separately
-    // for the client to encrypt. For now, storing in response header.
-    return c.json(createSuccessResponse(response), HttpStatus.CREATED, {
-      'X-GitHub-Token': tokenData.access_token, // Client will encrypt this
-    });
+    // Return token in response body for encryption
+    return c.json({
+      success: true,
+      data: {
+        access_token: tokenData.access_token,
+        github_user: githubUser,
+        scope: tokenData.scope,
+        connection_id: connectionId
+      }
+    }, HttpStatus.CREATED);
   } catch (error) {
     console.error('GitHub callback error:', error);
 

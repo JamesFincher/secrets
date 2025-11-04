@@ -195,8 +195,45 @@ async function storeLinkedRepo(
   repoUrl: string,
   abyrithIdentifier: string,
   syncConfig: any,
-  env: Env
+  env: Env,
+  token: string
 ): Promise<string> {
+  // Fetch github_connection_id for this user
+  const connectionResponse = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/github_connections?user_id=eq.${userId}&select=id`,
+    {
+      headers: {
+        'apikey': env.SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+      },
+    }
+  );
+
+  const connectionData = await connectionResponse.json();
+  if (!connectionData || connectionData.length === 0) {
+    throw new Error('GitHub not connected');
+  }
+
+  const githubConnectionId = connectionData[0].id;
+
+  // Fetch user's organization
+  const orgResponse = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/organization_members?user_id=eq.${userId}&select=organization_id`,
+    {
+      headers: {
+        'apikey': env.SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+      },
+    }
+  );
+
+  const orgData = await orgResponse.json();
+  if (!orgData || orgData.length === 0) {
+    throw new Error('User not associated with an organization');
+  }
+
+  const organizationId = orgData[0].organization_id;
+
   const response = await fetch(`${env.SUPABASE_URL}/rest/v1/github_linked_repos`, {
     method: 'POST',
     headers: {
@@ -206,16 +243,16 @@ async function storeLinkedRepo(
       'Prefer': 'return=representation',
     },
     body: JSON.stringify({
+      organization_id: organizationId,
+      github_connection_id: githubConnectionId,
       user_id: userId,
       project_id: projectId,
-      repo_id: repoId,
+      github_repo_id: repoId,
       repo_owner: repoOwner,
       repo_name: repoName,
       repo_url: repoUrl,
       abyrith_identifier: abyrithIdentifier,
-      sync_env_files: syncConfig.env_files,
-      sync_github_actions: syncConfig.github_actions,
-      sync_dependencies: syncConfig.dependencies,
+      sync_sources: JSON.stringify(syncConfig),
       linked_at: new Date().toISOString(),
     }),
   });
@@ -301,6 +338,10 @@ export async function handleGitHubLinkRepo(
       );
     }
 
+    // Get JWT token from Authorization header
+    const authHeader = c.req.header('Authorization');
+    const jwtToken = authHeader?.replace('Bearer ', '') || '';
+
     // Initialize Octokit
     const octokit = new Octokit({
       auth: githubToken,
@@ -378,7 +419,8 @@ export async function handleGitHubLinkRepo(
       request.repo_url,
       abyrithIdentifier,
       request.sync_config,
-      env
+      env,
+      jwtToken
     );
 
     const response: LinkRepoResponse = {

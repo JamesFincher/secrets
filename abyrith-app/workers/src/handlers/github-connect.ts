@@ -14,11 +14,8 @@ import { z } from 'zod';
  * Request validation schema
  */
 const ConnectRequestSchema = z.object({
-  redirect_uri: z.string().url().refine(
-    (url) => url.startsWith('https://'),
-    { message: 'redirect_uri must use HTTPS' }
-  ),
-  scopes: z.array(z.string()).min(1, 'At least one scope is required'),
+  redirect_uri: z.string().url(),
+  scopes: z.array(z.string()).optional().default(['repo', 'read:user']),
 });
 
 interface ConnectRequest {

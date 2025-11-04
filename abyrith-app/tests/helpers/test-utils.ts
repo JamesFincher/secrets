@@ -441,3 +441,88 @@ export async function retry<T>(
 
   throw lastError || new Error('Operation failed after retries')
 }
+
+/**
+ * GitHub-specific cleanup utilities
+ */
+
+/**
+ * Cleanup GitHub connection for a user
+ */
+export async function cleanupGitHubConnection(userId: string) {
+  const adminClient = createTestAdminClient()
+
+  console.log(`Cleaning up GitHub connection for user: ${userId}`)
+
+  try {
+    // Delete GitHub connection
+    const { error: connectionError } = await adminClient
+      .from('github_connections')
+      .delete()
+      .eq('user_id', userId)
+
+    if (connectionError) {
+      console.error('Error deleting GitHub connection:', connectionError)
+    }
+
+    console.log(`GitHub connection cleanup complete for user: ${userId}`)
+  } catch (error) {
+    console.error('Error during GitHub connection cleanup:', error)
+    throw error
+  }
+}
+
+/**
+ * Cleanup linked GitHub repositories for an organization
+ */
+export async function cleanupLinkedRepositories(organizationId: string) {
+  const adminClient = createTestAdminClient()
+
+  console.log(`Cleaning up linked repositories for org: ${organizationId}`)
+
+  try {
+    // Get all linked repos for the org
+    const { data: linkedRepos } = await adminClient
+      .from('github_linked_repos')
+      .select('id')
+      .eq('organization_id', organizationId)
+
+    if (linkedRepos) {
+      // Delete sync logs for each linked repo
+      for (const repo of linkedRepos) {
+        const { error: logsError } = await adminClient
+          .from('github_sync_logs')
+          .delete()
+          .eq('github_linked_repo_id', repo.id)
+
+        if (logsError) {
+          console.error('Error deleting sync logs:', logsError)
+        }
+      }
+    }
+
+    // Delete linked repos
+    const { error: reposError } = await adminClient
+      .from('github_linked_repos')
+      .delete()
+      .eq('organization_id', organizationId)
+
+    if (reposError) {
+      console.error('Error deleting linked repos:', reposError)
+    }
+
+    console.log(`Linked repositories cleanup complete for org: ${organizationId}`)
+  } catch (error) {
+    console.error('Error during linked repositories cleanup:', error)
+    throw error
+  }
+}
+
+/**
+ * Complete GitHub integration cleanup
+ * Removes all GitHub-related data for a user and their organization
+ */
+export async function cleanupAllGitHubData(userId: string, organizationId: string) {
+  await cleanupGitHubConnection(userId)
+  await cleanupLinkedRepositories(organizationId)
+}

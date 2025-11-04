@@ -19,6 +19,12 @@ import {
 } from './middleware/rate-limit';
 import { handleScrape } from './handlers/scrape';
 import { handleAiChat } from './handlers/ai-chat';
+import { handleGitHubConnect } from './handlers/github-connect';
+import { handleGitHubCallback } from './handlers/github-callback';
+import { handleGitHubRepos } from './handlers/github-repos';
+import { handleGitHubLinkRepo } from './handlers/github-link-repo';
+import { handleGitHubPreviewSync } from './handlers/github-preview-sync';
+import { handleGitHubSyncRepo } from './handlers/github-sync-repo';
 
 /**
  * Initialize Hono app with environment bindings
@@ -179,6 +185,14 @@ api.get('/audit-logs', authMiddleware, readRateLimiter, (c) => {
     })
   );
 });
+
+// GitHub integration endpoints
+api.post('/github/connect', authMiddleware, writeRateLimiter, handleGitHubConnect);
+api.post('/github/callback', authMiddleware, writeRateLimiter, handleGitHubCallback);
+api.get('/github/repos', authMiddleware, readRateLimiter, handleGitHubRepos);
+api.post('/github/repos/link', authMiddleware, writeRateLimiter, handleGitHubLinkRepo);
+api.get('/github/repos/:repo_id/preview', authMiddleware, readRateLimiter, handleGitHubPreviewSync);
+api.post('/github/repos/:repo_id/sync', authMiddleware, writeRateLimiter, handleGitHubSyncRepo);
 
 /**
  * Mount API routes under /api/v1

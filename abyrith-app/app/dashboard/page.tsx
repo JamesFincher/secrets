@@ -11,6 +11,7 @@ import { CreateSecretDialog } from '@/components/secrets/create-secret-dialog';
 import { SecretCard } from '@/components/secrets/secret-card';
 import { Breadcrumb } from '@/components/dashboard/breadcrumb';
 import { SecretCardSkeletonList } from '@/components/ui/skeletons/secret-card-skeleton';
+import { GitHubQuickAccess } from '@/components/dashboard/github-quick-access';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -113,6 +114,11 @@ export default function DashboardPage() {
               currentSystem={selectedSystem ? { id: selectedSystem.id, name: selectedSystem.name } : undefined}
               currentEnvironment={selectedEnvironment ? { id: selectedEnvironment.id, name: selectedEnvironment.name } : undefined}
             />
+          </div>
+
+          {/* GitHub Quick Access */}
+          <div className="mb-6">
+            <GitHubQuickAccess />
           </div>
 
           {/* Organization Error */}

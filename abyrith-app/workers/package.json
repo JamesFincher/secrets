@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.4",
+    "@octokit/rest": "^20.0.2",
     "hono": "^4.10.4",
     "zod": "^4.1.12"
   }

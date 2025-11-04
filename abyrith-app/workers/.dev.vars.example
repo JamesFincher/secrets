@@ -1,0 +1,29 @@
+# Cloudflare Workers Environment Variables (Development)
+# Copy this file to .dev.vars and fill in your actual values
+# Never commit .dev.vars to version control!
+
+# Environment
+ENVIRONMENT=development
+
+# Supabase
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_JWT_SECRET=your_supabase_jwt_secret
+
+# Claude API
+CLAUDE_API_KEY=sk-ant-your-claude-api-key
+
+# FireCrawl API
+FIRECRAWL_API_KEY=fc-your-firecrawl-api-key
+
+# Frontend URL (for CORS)
+FRONTEND_URL=http://localhost:3000
+
+# GitHub Integration
+GITHUB_CLIENT_ID=your_github_app_client_id
+GITHUB_CLIENT_SECRET=your_github_app_client_secret
+GITHUB_APP_ID=your_github_app_id
+# GITHUB_PRIVATE_KEY= (optional, for GitHub App installation tokens)
+
+# Sentry (optional)
+# SENTRY_DSN=https://your-sentry-dsn

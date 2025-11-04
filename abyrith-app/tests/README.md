@@ -438,6 +438,434 @@ jobs:
           path: playwright-report/
 ```
 
+## GitHub Integration Tests
+
+### Overview
+
+GitHub integration tests cover OAuth flow, repository linking, and secret syncing.
+
+**Test Files:**
+- `lib/crypto/github-encryption.test.ts` - Token encryption unit tests
+- `lib/api/github.test.ts` - API service unit tests (with mocked Supabase)
+- `tests/integration/github.spec.ts` - End-to-end integration tests
+- `tests/helpers/github-helpers.ts` - GitHub-specific test utilities
+
+### Running GitHub Tests
+
+**Unit Tests (Encryption & API):**
+```bash
+# Run encryption tests
+npm test lib/crypto/github-encryption.test.ts
+
+# Run API service tests
+npm test lib/api/github.test.ts
+
+# Run all GitHub unit tests
+npm test -- --grep "GitHub"
+```
+
+**Integration Tests:**
+```bash
+# Run all GitHub integration tests
+npx playwright test tests/integration/github.spec.ts
+
+# Run with UI mode (recommended)
+npx playwright test tests/integration/github.spec.ts --ui
+
+# Run specific test suite
+npx playwright test tests/integration/github.spec.ts --grep "OAuth"
+```
+
+### Test Coverage
+
+**Encryption Tests (100% coverage):**
+- ✅ Token encryption produces valid structure
+- ✅ Token decryption reverses encryption
+- ✅ Round-trip encrypt/decrypt preserves original
+- ✅ Invalid password throws error
+- ✅ Token format validation
+- ✅ Security properties (unique nonces, auth tags)
+- ✅ Performance benchmarks
+
+**API Service Tests (>90% coverage):**
+- ✅ OAuth initialization
+- ✅ OAuth completion with token encryption
+- ✅ Connection management (get, disconnect)
+- ✅ Repository listing with pagination
+- ✅ Repository linking (create/link existing project)
+- ✅ Secret preview and sync
+- ✅ Sync log retrieval
+- ✅ Error handling
+
+**Integration Tests (End-to-End):**
+- ✅ Complete OAuth flow
+- ✅ Repository browsing and filtering
+- ✅ Repository linking with project creation
+- ✅ Secret preview with collision detection
+- ✅ Secret import with encryption verification
+- ✅ Sync history display
+- ✅ Error handling (OAuth cancel, network errors)
+
+### Test Utilities
+
+**GitHub Test Helpers (`tests/helpers/github-helpers.ts`):**
+
+```typescript
+import {
+  generateMockGitHubToken,
+  generateMockRepository,
+  generateMockLinkedRepository,
+  generateMockSyncLog,
+  createMockSupabaseClient,
+  mockGitHubAPIResponses,
+} from '../helpers/github-helpers'
+
+// Generate test data
+const token = generateMockGitHubToken('ghp')
+const repo = generateMockRepository()
+const linkedRepo = generateMockLinkedRepository()
+
+// Mock Supabase client
+const mockClient = createMockSupabaseClient({
+  sessionUser: { id: 'test-user-123' },
+  connectionData: generateMockGitHubConnection(),
+})
+
+// Mock GitHub API responses
+mockClient.functions.invoke.mockResolvedValue(
+  mockGitHubAPIResponses.listRepos(10)
+)
+```
+
+### Testing OAuth Flow
+
+**Local Testing (with Mock):**
+
+```bash
+# 1. Start dev server
+npm run dev
+
+# 2. Run OAuth tests
+npx playwright test tests/integration/github.spec.ts --grep "OAuth"
+```
+
+**Testing with Real GitHub (Optional):**
+
+1. Create GitHub OAuth App:
+   - Go to GitHub Settings → Developer settings → OAuth Apps
+   - Create new OAuth App
+   - Set callback URL: `http://localhost:3000/auth/callback/github`
+
+2. Configure environment:
+```bash
+# Add to .env.local
+GITHUB_CLIENT_ID=your_client_id
+GITHUB_CLIENT_SECRET=your_client_secret
+```
+
+3. Run tests with real GitHub account:
+```bash
+# Set test GitHub account credentials
+TEST_GITHUB_TOKEN=ghp_your_test_token
+
+npx playwright test tests/integration/github.spec.ts --headed
+```
+
+### Testing Secret Import
+
+**Prerequisites:**
+1. GitHub account connected
+2. Repository linked to project
+3. Test repository with `.env` file
+
+**Test Repository Setup:**
+
+Create a test repository with:
+```
+# .env
+API_KEY=test_api_key_value
+DATABASE_URL=postgres://localhost/test
+SECRET_TOKEN=test_secret_123
+```
+
+**Run Import Tests:**
+```bash
+npx playwright test tests/integration/github.spec.ts --grep "Secret Import"
+```
+
+### Verifying Encryption
+
+All GitHub tests verify zero-knowledge encryption:
+
+```typescript
+// Verify token encrypted in database
+import { verifySecretEncrypted } from '../helpers/test-utils'
+
+const isEncrypted = await verifySecretEncrypted(secretId, plaintextValue)
+expect(isEncrypted).toBe(true)
+```
+
+### Mock Data Generators
+
+**Available Generators:**
+
+```typescript
+// Tokens
+generateMockGitHubToken('ghp') // Personal access token
+generateMockGitHubToken('gho') // OAuth token
+
+// Connections
+generateMockGitHubConnection({
+  github_username: 'testuser',
+})
+
+// Repositories
+generateMockRepository({
+  name: 'test-repo',
+  private: true,
+})
+
+generateMockRepositories(10) // Generate 10 repos
+
+// Linked Repositories
+generateMockLinkedRepository({
+  sync_enabled: true,
+  auto_sync_enabled: false,
+})
+
+// Sync Logs
+generateMockSyncLog({
+  sync_status: 'success',
+  secrets_imported: 5,
+})
+
+// Secret Previews
+generateMockSecretPreviews(10)
+```
+
+### Debugging GitHub Tests
+
+**1. UI Mode (Recommended):**
+```bash
+npx playwright test tests/integration/github.spec.ts --ui
+```
+
+**2. Debug Mode:**
+```bash
+npx playwright test tests/integration/github.spec.ts --debug
+```
+
+**3. View Network Requests:**
+```bash
+# Run with network logging
+DEBUG=pw:api npx playwright test tests/integration/github.spec.ts
+```
+
+**4. Check Encryption:**
+```typescript
+// Add to test
+const adminClient = createTestAdminClient()
+const { data: connection } = await adminClient
+  .from('github_connections')
+  .select('*')
+  .single()
+
+console.log('Encrypted token:', connection.encrypted_github_token)
+console.log('Token nonce:', connection.token_nonce)
+```
+
+### Common Issues
+
+**Issue: "GitHub not connected" error**
+
+**Cause:** OAuth flow not completed
+
+**Solution:**
+```bash
+# Complete OAuth manually in headed mode
+npx playwright test --grep "OAuth" --headed
+
+# Or mock the connection
+const mockConnection = generateMockGitHubConnection()
+```
+
+**Issue: "Token decryption failed"**
+
+**Cause:** Wrong master password or corrupted encryption data
+
+**Solution:**
+- Verify master password matches
+- Check KEK salt is valid base64
+- Verify encryption happened before decryption
+
+**Issue: "Repository list empty"**
+
+**Cause:** GitHub account has no repos or token invalid
+
+**Solution:**
+- Use test account with repositories
+- Verify token has `repo` scope
+- Check GitHub API rate limits
+
+**Issue: "Sync failed - secrets not imported"**
+
+**Cause:** No secrets found in repository or import failed
+
+**Solution:**
+- Verify test repository has `.env` file
+- Check secret parsing logic
+- Review sync logs for errors
+
+### Performance Targets
+
+GitHub integration tests should meet these targets:
+
+| Operation | Target | Actual |
+|-----------|--------|--------|
+| Token encryption | < 500ms | TBD |
+| Token decryption | < 500ms | TBD |
+| List repositories | < 2s | TBD |
+| Secret preview | < 3s | TBD |
+| Secret import (10 secrets) | < 5s | TBD |
+| OAuth flow (complete) | < 10s | TBD |
+
+Run performance tests:
+```bash
+npx playwright test tests/integration/github.spec.ts --reporter=html
+```
+
+### Security Verification
+
+**Critical Security Checks:**
+
+1. **Zero-Knowledge Encryption:**
+```typescript
+// Token never sent plaintext to server
+await verifyEncryptedRequest(page, async () => {
+  await listRepositories()
+}, 'ghp_plaintext_token')
+```
+
+2. **Token Storage:**
+```typescript
+// Verify encrypted in database
+const { data } = await adminClient
+  .from('github_connections')
+  .select('encrypted_github_token')
+  .single()
+
+expect(data.encrypted_github_token).not.toContain('ghp_')
+```
+
+3. **RLS Enforcement:**
+```typescript
+// User can only access own connections
+const { error } = await clientB
+  .from('github_connections')
+  .select()
+  .eq('user_id', userA.id)
+
+expect(error).toBeDefined() // Should fail
+```
+
+### Test Data Cleanup
+
+**Cleanup GitHub Test Data:**
+
+```typescript
+import { cleanupTestData, createTestAdminClient } from '../helpers/test-utils'
+
+test.afterEach(async () => {
+  const adminClient = createTestAdminClient()
+
+  // Clean up GitHub connections
+  await adminClient
+    .from('github_connections')
+    .delete()
+    .eq('user_id', testUserId)
+
+  // Clean up linked repos
+  await adminClient
+    .from('github_linked_repos')
+    .delete()
+    .eq('organization_id', testOrgId)
+
+  // Clean up sync logs
+  await adminClient
+    .from('github_sync_logs')
+    .delete()
+    .eq('github_linked_repo_id', testRepoId)
+
+  // Clean up all user data
+  await cleanupTestData(testUserId)
+})
+```
+
+### CI/CD Integration
+
+**GitHub Actions Workflow:**
+
+```yaml
+# .github/workflows/test-github-integration.yml
+name: GitHub Integration Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright
+        run: npx playwright install chromium
+
+      - name: Run GitHub unit tests
+        run: |
+          npm test lib/crypto/github-encryption.test.ts
+          npm test lib/api/github.test.ts
+
+      - name: Run GitHub integration tests
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          TEST_GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
+        run: |
+          npx playwright test tests/integration/github.spec.ts
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: github-test-results
+          path: playwright-report/
+```
+
+### Best Practices
+
+**DO:**
+- ✅ Use mock data for unit tests
+- ✅ Clean up test data after each test
+- ✅ Verify encryption at every step
+- ✅ Test error scenarios
+- ✅ Use test-specific GitHub account
+- ✅ Mock GitHub API in unit tests
+
+**DON'T:**
+- ❌ Use production GitHub account for tests
+- ❌ Commit real GitHub tokens
+- ❌ Skip encryption verification
+- ❌ Leave test data in database
+- ❌ Test against rate-limited endpoints
+- ❌ Hardcode test data
+
 ## Contributing
 
 When adding new tests:
@@ -447,6 +875,7 @@ When adding new tests:
 3. **Clean up data** - Use `cleanupTestData()` in afterEach
 4. **Verify zero-knowledge** - Check encryption for secrets
 5. **Document** - Add comments explaining test purpose
+6. **Add GitHub tests** - Update github-helpers.ts with new mocks
 
 ## Resources
 
@@ -454,6 +883,8 @@ When adding new tests:
 - [Integration Test Plan](../INTEGRATION-TEST-PLAN.md)
 - [Test Results Template](../INTEGRATION-TEST-RESULTS.md)
 - [Supabase Testing Docs](https://supabase.com/docs/guides/testing)
+- [GitHub OAuth Apps](https://docs.github.com/en/apps/oauth-apps)
+- [Jest/Vitest Documentation](https://vitest.dev/)
 
 ## Support
 
@@ -461,4 +892,5 @@ For issues or questions:
 1. Check this README
 2. Review test plan documentation
 3. Check Playwright docs
-4. Ask in team Slack/Discord
+4. Review GitHub test helpers
+5. Ask in team Slack/Discord

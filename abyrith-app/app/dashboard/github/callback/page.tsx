@@ -77,8 +77,30 @@ export default function GitHubCallbackPage() {
     setErrorMessage('');
 
     try {
-      // Verify password
-      const isValid = await verifyMasterPassword(passwordInput);
+      // Load preferences if not in memory (happens when user skips unlock page)
+      let prefs = preferences;
+      if (!prefs) {
+        console.log('[GitHub Callback] Loading user preferences...');
+        const { data, error } = await (await import('@/lib/api/supabase')).supabase
+          .from('user_preferences')
+          .select('*')
+          .eq('user_id', (await import('@/lib/api/supabase')).supabase.auth.getUser().then(r => r.data.user?.id))
+          .single();
+
+        if (error || !data) {
+          throw new Error('Failed to load user preferences. Please try unlocking your vault first.');
+        }
+
+        prefs = {
+          masterPasswordVerification: data.master_password_verification,
+          theme: data.theme,
+          notificationsEnabled: data.notifications_enabled,
+        };
+      }
+
+      // Verify password using preferences
+      const { verifyPassword } = await import('@/lib/crypto/envelope-encryption');
+      const isValid = await verifyPassword(prefs.masterPasswordVerification, passwordInput);
 
       if (!isValid) {
         setErrorMessage('Incorrect master password');
@@ -89,9 +111,8 @@ export default function GitHubCallbackPage() {
       // Get parameters again
       const code = searchParams.get('code');
       const state = searchParams.get('state');
-      const prefs = preferences;
 
-      if (!code || !state || !prefs) {
+      if (!code || !state) {
         throw new Error('Missing required parameters');
       }
 

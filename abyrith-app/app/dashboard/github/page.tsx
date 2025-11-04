@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Github, Database, History, Settings } from 'lucide-react';
 
 export default function GitHubPage() {
-  const { user, masterPassword } = useAuth();
+  const { user } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -38,21 +38,6 @@ export default function GitHubPage() {
         <div className="max-w-6xl mx-auto">
           <Card className="p-8 text-center">
             <p className="text-muted-foreground">Please sign in to access GitHub integration</p>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  if (!masterPassword) {
-    return (
-      <div className="min-h-screen p-8">
-        <div className="max-w-6xl mx-auto">
-          <Card className="p-8 text-center">
-            <h2 className="text-xl font-semibold mb-2">Master Password Required</h2>
-            <p className="text-muted-foreground">
-              Please unlock your vault to access GitHub integration
-            </p>
           </Card>
         </div>
       </div>

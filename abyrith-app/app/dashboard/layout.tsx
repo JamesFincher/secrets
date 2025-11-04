@@ -20,14 +20,26 @@ export default function DashboardLayout({
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   useEffect(() => {
+    // Routes that don't require unlocked vault (master password in memory)
+    const publicDashboardRoutes = ['/dashboard/github', '/dashboard/github/callback'];
+    const isPublicRoute = publicDashboardRoutes.some(route => pathname?.startsWith(route));
+
     if (!isAuthenticated) {
       router.push('/auth/signin');
-    } else if (!hasMasterPassword) {
+    } else if (!hasMasterPassword && !isPublicRoute) {
       router.push('/auth/unlock');
     }
-  }, [isAuthenticated, hasMasterPassword, router]);
+  }, [isAuthenticated, hasMasterPassword, router, pathname]);
 
-  if (!user || !hasMasterPassword) {
+  // Allow viewing GitHub pages without master password (they'll prompt for it when needed)
+  const publicDashboardRoutes = ['/dashboard/github', '/dashboard/github/callback'];
+  const isPublicRoute = publicDashboardRoutes.some(route => pathname?.startsWith(route));
+
+  if (!user) {
+    return null;
+  }
+
+  if (!hasMasterPassword && !isPublicRoute) {
     return null;
   }
 

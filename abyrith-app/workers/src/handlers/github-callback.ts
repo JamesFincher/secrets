@@ -132,7 +132,7 @@ async function storeGitHubConnection(
       user_id: userId,
       github_user_id: githubUser.id,
       github_username: githubUser.login,
-      scopes: scopes,
+      token_scope: scopes,
       last_used_at: new Date().toISOString(),
     }),
   });

@@ -81,13 +81,23 @@ export default function GitHubCallbackPage() {
       let prefs = preferences;
       if (!prefs) {
         console.log('[GitHub Callback] Loading user preferences...');
-        const { data, error } = await (await import('@/lib/api/supabase')).supabase
+        const supabase = (await import('@/lib/api/supabase')).supabase;
+
+        // Get current user ID
+        const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+        if (userError || !currentUser) {
+          throw new Error('Not authenticated');
+        }
+
+        // Load preferences from database
+        const { data, error } = await supabase
           .from('user_preferences')
           .select('*')
-          .eq('user_id', (await import('@/lib/api/supabase')).supabase.auth.getUser().then(r => r.data.user?.id))
+          .eq('user_id', currentUser.id)
           .single();
 
         if (error || !data) {
+          console.error('[GitHub Callback] Failed to load preferences:', error);
           throw new Error('Failed to load user preferences. Please try unlocking your vault first.');
         }
 
@@ -96,6 +106,7 @@ export default function GitHubCallbackPage() {
           theme: data.theme,
           notificationsEnabled: data.notifications_enabled,
         };
+        console.log('[GitHub Callback] Preferences loaded successfully');
       }
 
       // Verify password using preferences

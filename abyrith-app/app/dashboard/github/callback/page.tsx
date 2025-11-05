@@ -83,11 +83,12 @@ export default function GitHubCallbackPage() {
         console.log('[GitHub Callback] Loading user preferences...');
         const supabase = (await import('@/lib/api/supabase')).supabase;
 
-        // Get current user ID
-        const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
-        if (userError || !currentUser) {
+        // Get current user ID from session (works better after OAuth redirects)
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !session?.user) {
           throw new Error('Not authenticated');
         }
+        const currentUser = session.user;
 
         // Load preferences from database
         const { data, error } = await supabase

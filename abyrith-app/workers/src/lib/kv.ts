@@ -64,7 +64,8 @@ export async function incrementRateLimit(
     resetAt: existing.resetAt,
   };
 
-  const ttlSeconds = Math.ceil((data.resetAt - now) / 1000);
+  // KV requires minimum TTL of 60 seconds
+  const ttlSeconds = Math.max(60, Math.ceil((data.resetAt - now) / 1000));
   await setRateLimitData(kv, key, data, ttlSeconds);
 
   return data;

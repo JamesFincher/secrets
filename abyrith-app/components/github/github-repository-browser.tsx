@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
   listGitHubRepositories,
@@ -33,6 +34,10 @@ export function GitHubRepositoryBrowser() {
   const [isLinking, setIsLinking] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [needsPassword, setNeedsPassword] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [userPreferences, setUserPreferences] = useState<any>(null);
   const { masterPassword, preferences } = useAuth();
   const { toast } = useToast();
 
@@ -40,23 +45,25 @@ export function GitHubRepositoryBrowser() {
     loadData();
   }, [page]);
 
-  async function loadData() {
-    if (!masterPassword || !preferences) {
-      toast({
-        title: 'Master Password Required',
-        description: 'Please unlock your vault to access GitHub repositories',
-        variant: 'destructive',
-      });
+  async function loadData(password?: string, prefs?: any) {
+    const pwd = password || masterPassword;
+    const userPrefs = prefs || preferences;
+
+    if (!pwd || !userPrefs) {
+      // Need password - show prompt
+      setIsLoading(false);
+      setNeedsPassword(true);
       return;
     }
 
     try {
       setIsLoading(true);
+      setNeedsPassword(false);
 
       // Load repositories and linked repos in parallel
-      const kekSalt = preferences.masterPasswordVerification.salt;
+      const kekSalt = userPrefs.masterPasswordVerification.salt;
       const [reposData, linkedData] = await Promise.all([
-        listGitHubRepositories(masterPassword, kekSalt, page, 30),
+        listGitHubRepositories(pwd, kekSalt, page, 30),
         getLinkedRepositories(),
       ]);
 
@@ -164,6 +171,44 @@ export function GitHubRepositoryBrowser() {
     }
   }
 
+  async function handlePasswordSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setIsVerifying(true);
+
+    try {
+      // Import auth hook to get verifyMasterPassword function
+      const { useAuthStore } = await import('@/lib/stores/auth-store');
+      const authStore = useAuthStore.getState();
+
+      // Use the auth store's verifyMasterPassword which stores the password
+      const isValid = await authStore.verifyMasterPassword(passwordInput);
+
+      if (!isValid) {
+        toast({
+          title: 'Incorrect Password',
+          description: 'The master password you entered is incorrect',
+          variant: 'destructive',
+        });
+        setIsVerifying(false);
+        return;
+      }
+
+      // Load repositories with verified password
+      // After verifyMasterPassword succeeds, masterPassword is now in the auth store
+      await loadData(passwordInput, authStore.preferences);
+      setPasswordInput('');
+    } catch (error) {
+      console.error('Password verification error:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to verify password',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsVerifying(false);
+    }
+  }
+
   const filteredRepos = repositories.filter((repo) => {
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
@@ -173,6 +218,41 @@ export function GitHubRepositoryBrowser() {
       repo.language?.toLowerCase().includes(query)
     );
   });
+
+  // Show password prompt if needed
+  if (needsPassword) {
+    return (
+      <Card className="p-8">
+        <div className="max-w-md mx-auto space-y-6">
+          <div className="text-center">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-8 h-8 text-primary" />
+            </div>
+            <h2 className="text-2xl font-semibold mb-2">Master Password Required</h2>
+            <p className="text-muted-foreground">
+              Enter your master password to decrypt your GitHub token and access repositories
+            </p>
+          </div>
+          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            <div>
+              <Input
+                type="password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="Enter your master password"
+                required
+                autoFocus
+                disabled={isVerifying}
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={isVerifying}>
+              {isVerifying ? 'Verifying...' : 'Unlock'}
+            </Button>
+          </form>
+        </div>
+      </Card>
+    );
+  }
 
   if (isLoading) {
     return (

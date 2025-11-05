@@ -124,7 +124,7 @@ async function storeGitHubConnection(
     headers: {
       'Content-Type': 'application/json',
       'apikey': env.SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`,
+      'Authorization': `Bearer ${token}`,
       'Prefer': 'return=representation',
     },
     body: JSON.stringify({
@@ -208,31 +208,16 @@ export async function handleGitHubCallback(
     // Parse scopes
     const scopes = tokenData.scope.split(' ').filter(s => s.length > 0);
 
-    // Get JWT token from Authorization header
-    const authHeader = c.req.header('Authorization');
-    const jwtToken = authHeader?.replace('Bearer ', '') || '';
-
-    // Store connection metadata (without token)
-    // Token will be returned to client for encryption
-    const connectionId = await storeGitHubConnection(
-      user.id,
-      githubUser,
-      scopes,
-      env,
-      jwtToken
-    );
-
-    // Return connection info + token (client will encrypt token)
-    // Return token in response body for encryption
+    // Return token + user info to client
+    // Client will handle encryption and database storage (zero-knowledge)
     return c.json({
       success: true,
       data: {
         access_token: tokenData.access_token,
         github_user: githubUser,
         scope: tokenData.scope,
-        connection_id: connectionId
       }
-    }, HttpStatus.CREATED);
+    }, HttpStatus.OK);
   } catch (error) {
     console.error('GitHub callback error:', error);
 

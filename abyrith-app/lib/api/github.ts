@@ -16,6 +16,10 @@ import {
   decryptGitHubToken,
   type EncryptedGitHubToken,
 } from '../crypto/github-encryption';
+import { createApiLogger } from '../utils/logger';
+
+// Create logger for GitHub API operations
+const log = createApiLogger('github-api');
 
 /**
  * GitHub connection status
@@ -174,7 +178,7 @@ export async function completeGitHubOAuth(
   }
 
   const result = await response.json();
-  const { access_token, github_user, scope, connection_id } = result.data;
+  const { access_token, github_user, scope } = result.data;
 
   // Step 2: Encrypt token client-side (zero-knowledge)
   const encryptedToken = await encryptGitHubToken(
@@ -280,6 +284,15 @@ export async function listGitHubRepositories(
   page: number = 1,
   perPage: number = 30
 ): Promise<{ repos: GitHubRepository[]; total_count: number }> {
+  log.debug('listGitHubRepositories called', {
+    hasMasterPassword: !!masterPassword,
+    masterPasswordLength: masterPassword?.length,
+    hasKekSalt: !!kekSalt,
+    kekSaltLength: kekSalt?.length,
+    page,
+    perPage,
+  });
+
   // Get encrypted token from database
   const connection = await getGitHubConnection();
   if (!connection) {
@@ -295,11 +308,21 @@ export async function listGitHubRepositories(
     token_auth_tag: connection.token_auth_tag,
   };
 
+  log.debug('Decrypting GitHub token for list repos', {
+    hasEncryptedToken: !!encryptedToken.encrypted_github_token,
+    hasMasterPassword: !!masterPassword,
+    masterPasswordLength: masterPassword?.length,
+    hasKekSalt: !!kekSalt,
+    kekSaltLength: kekSalt?.length,
+  });
+
   const accessToken = await decryptGitHubToken(
     encryptedToken,
     masterPassword,
     kekSalt
   );
+
+  log.debug('GitHub token decrypted successfully for list repos');
 
   // Call GitHub API via Cloudflare Worker proxy
   const { data: sessionData2 } = await supabase.auth.getSession();
@@ -353,39 +376,75 @@ export async function linkGitHubRepository(
   masterPassword: string,
   kekSalt: string
 ): Promise<LinkedRepository> {
-  // Get and decrypt GitHub token
-  const connection = await getGitHubConnection();
-  if (!connection) {
-    throw new Error('GitHub not connected');
-  }
+  log.info('Starting GitHub repository link', {
+    repoId,
+    repoOwner,
+    repoName,
+    action,
+    projectName,
+    projectId,
+    defaultEnvironmentId,
+    writeMarkerFile,
+  });
 
-  const encryptedToken: EncryptedGitHubToken = {
-    encrypted_github_token: connection.encrypted_github_token,
-    token_nonce: connection.token_nonce,
-    token_dek: connection.token_dek,
-    dek_nonce: connection.dek_nonce,
-    token_auth_tag: connection.token_auth_tag,
-  };
+  try {
+    // Get and decrypt GitHub token
+    log.debug('Fetching GitHub connection');
+    const connection = await getGitHubConnection();
 
-  const accessToken = await decryptGitHubToken(
-    encryptedToken,
-    masterPassword,
-    kekSalt
-  );
+    if (!connection) {
+      log.error('GitHub not connected');
+      throw new Error('GitHub not connected');
+    }
 
-  // Call link endpoint via Cloudflare Worker
-  const { data: sessionData3 } = await supabase.auth.getSession();
-  if (!sessionData3?.session) throw new Error('Not authenticated');
+    log.debug('GitHub connection found', {
+      connectionId: connection.id,
+      githubUsername: connection.github_username,
+    });
 
-  const workerUrl = process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8787';
-  const response = await fetch(`${workerUrl}/api/v1/github/repos/link`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${sessionData3.session.access_token}`,
-      'X-GitHub-Token': accessToken,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
+    const encryptedToken: EncryptedGitHubToken = {
+      encrypted_github_token: connection.encrypted_github_token,
+      token_nonce: connection.token_nonce,
+      token_dek: connection.token_dek,
+      dek_nonce: connection.dek_nonce,
+      token_auth_tag: connection.token_auth_tag,
+    };
+
+    log.debug('Decrypting GitHub token', {
+      hasEncryptedToken: !!encryptedToken.encrypted_github_token,
+      hasTokenDek: !!encryptedToken.token_dek,
+      hasTokenNonce: !!encryptedToken.token_nonce,
+      hasDekNonce: !!encryptedToken.dek_nonce,
+      hasAuthTag: !!encryptedToken.token_auth_tag,
+      hasMasterPassword: !!masterPassword,
+      masterPasswordLength: masterPassword?.length,
+      hasKekSalt: !!kekSalt,
+      kekSaltLength: kekSalt?.length,
+    });
+    const accessToken = await decryptGitHubToken(
+      encryptedToken,
+      masterPassword,
+      kekSalt
+    );
+    log.debug('GitHub token decrypted successfully');
+
+    // Call link endpoint via Cloudflare Worker
+    log.debug('Getting Supabase session');
+    const { data: sessionData3 } = await supabase.auth.getSession();
+
+    if (!sessionData3?.session) {
+      log.error('User not authenticated');
+      throw new Error('Not authenticated');
+    }
+
+    log.debug('Session found', {
+      userId: sessionData3.session.user.id,
+    });
+
+    const workerUrl = process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8787';
+    const endpoint = `${workerUrl}/api/v1/github/repos/link`;
+
+    const requestPayload = {
       repo_id: repoId,
       repo_owner: repoOwner,
       repo_name: repoName,
@@ -400,16 +459,58 @@ export async function linkGitHubRepository(
         github_actions: true,
         dependencies: true
       }
-    })
-  });
+    };
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Failed to link repository: ${error.error?.message || 'Unknown error'}`);
+    log.request('POST', endpoint, requestPayload);
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${sessionData3.session.access_token}`,
+        'X-GitHub-Token': accessToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestPayload)
+    });
+
+    log.debug('Received response', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      log.error('Link repository request failed', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText,
+      });
+
+      let errorMessage = 'Unknown error';
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error?.message || errorMessage;
+        log.error('Parsed error response', errorJson);
+      } catch (e) {
+        log.error('Could not parse error response as JSON', { errorText });
+      }
+
+      throw new Error(`Failed to link repository: ${errorMessage}`);
+    }
+
+    const result = await response.json();
+    log.success('POST', endpoint, response.status, result);
+    log.info('GitHub repository linked successfully', {
+      linkedRepoId: result.data?.linked_repo_id,
+      projectId: result.data?.project_id,
+    });
+
+    return result.data;
+  } catch (error: any) {
+    log.error('POST', `${process.env.NEXT_PUBLIC_WORKER_URL || 'http://localhost:8787'}/api/v1/github/repos/link`, error);
+    throw error;
   }
-
-  const result = await response.json();
-  return result.data;
 }
 
 /**

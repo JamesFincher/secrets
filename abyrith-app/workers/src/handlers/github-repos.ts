@@ -70,20 +70,23 @@ async function getGitHubToken(userId: string, env: Env): Promise<string> {
 }
 
 /**
- * Get linked repository IDs for user
+ * Get linked repository IDs for user's organization
+ * Note: RLS policies automatically filter by organization membership
  */
-async function getLinkedRepoIds(userId: string, env: Env): Promise<Set<number>> {
+async function getLinkedRepoIds(userId: string, env: Env, authToken: string): Promise<Set<number>> {
+  // RLS policies will automatically filter to user's organization
   const response = await fetch(
-    `${env.SUPABASE_URL}/rest/v1/github_linked_repos?user_id=eq.${userId}&select=github_repo_id`,
+    `${env.SUPABASE_URL}/rest/v1/github_linked_repos?select=github_repo_id`,
     {
       headers: {
         'apikey': env.SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`,
+        'Authorization': `Bearer ${authToken}`,  // Use user's JWT for RLS
       },
     }
   );
 
   if (!response.ok) {
+    console.error('Failed to fetch linked repos:', await response.text());
     return new Set();
   }
 
@@ -117,6 +120,10 @@ export async function handleGitHubRepos(
       );
     }
 
+    // Get user's Supabase JWT for RLS
+    const authHeader = c.req.header('Authorization');
+    const userToken = authHeader?.replace('Bearer ', '') || '';
+
     // Initialize Octokit
     const octokit = new Octokit({
       auth: githubToken,
@@ -131,7 +138,7 @@ export async function handleGitHubRepos(
     });
 
     // Get linked repository IDs
-    const linkedRepoIds = await getLinkedRepoIds(user.id, env);
+    const linkedRepoIds = await getLinkedRepoIds(user.id, env, userToken);
 
     // Transform GitHub repos to our format
     const repos: GitHubRepo[] = response.data.map(repo => ({

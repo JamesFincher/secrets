@@ -32,6 +32,7 @@ const defaultConfig: CorsConfig = {
     'X-Requested-With',
     'Accept',
     'Origin',
+    'X-GitHub-Token',
   ],
   exposedHeaders: [
     'X-RateLimit-Limit',
